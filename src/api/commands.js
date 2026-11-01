@@ -10,7 +10,7 @@ import { ValidationError } from '../utils/errors.js';
  *   - Rules:    1-32 lowercase letters, digits, '-' or '_'; description <= 100 chars;
  *               max 100 commands; no duplicate names.
  *   - Platform note: Yapin PUT /commands does NOT accept Discord-style typed options/subcommand trees;
- *               slash/prefix invocations deliver `data.command` and `data.args` (string) in `message` events.
+ *               native invocations deliver `data.command` and `data.args` in `message` events; MM2 Helper also parses its `$` prefix from ordinary `content`.
  */
 export const YapinCommandRegistrationSchema = z.object({
   name: z

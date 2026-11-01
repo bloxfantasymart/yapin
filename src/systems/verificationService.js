@@ -26,9 +26,9 @@ export class VerificationService {
   }
 
   /**
-   * Starts verification (`mm2:verify:start` button or `/verify` without code).
+   * Starts verification (`mm2:verify:start` button or `$verify` without code).
    * - If `mode === 'instant'`, verifies immediately and assigns `verifiedRoleId`.
-   * - If `mode === 'code'`, issues a 10-minute Sheriff Passcode (`MM2-XXXX`) to submit via `/verify code=...`.
+   * - If `mode === 'code'`, issues a 10-minute Sheriff Passcode (`MM2-XXXX`) to submit via `$verify code=...`.
    */
   async initiateVerification({ serverId, userId, username = null, correlationId = null }) {
     const cfg = await this.serverConfigRepo.getOrCreate(serverId);
@@ -79,7 +79,7 @@ export class VerificationService {
   }
 
   /**
-   * Verifies a submitted Sheriff Passcode (`/verify code=MM2-XXXX`).
+   * Verifies a submitted Sheriff Passcode (`$verify code=MM2-XXXX`).
    */
   async verifyWithCode({ serverId, userId, username = null, code, correlationId = null }) {
     const cfg = await this.serverConfigRepo.getOrCreate(serverId);
@@ -107,7 +107,7 @@ export class VerificationService {
     const submitted = String(code || '').trim().toUpperCase();
     if (!submitted) {
       throw new ValidationError(
-        'Missing Sheriff Passcode! Click **🛡️ Verify at Checkpoint** or run `/verify` first to get your code, then run `/verify code=MM2-XXXX`.',
+        'Missing Sheriff Passcode! Click **🛡️ Verify at Checkpoint** or run `$verify` first to get your code, then run `$verify code=MM2-XXXX`.',
       );
     }
 
@@ -118,7 +118,7 @@ export class VerificationService {
 
     if (!pending || Date.now() > exp) {
       throw new ValidationError(
-        'Your Sheriff Passcode expired or has not been generated yet. Run `/verify` to request a fresh code!',
+        'Your Sheriff Passcode expired or has not been generated yet. Run `$verify` to request a fresh code!',
       );
     }
 
@@ -143,7 +143,7 @@ export class VerificationService {
   }
 
   /**
-   * Staff manual verify / unverify (`/verifyuser`).
+   * Staff manual verify / unverify (`$verifyuser`).
    */
   async staffSetVerified({
     serverId,
@@ -217,7 +217,7 @@ export class VerificationService {
   }) {
     if (!cfg.roles?.verifiedRoleId) {
       throw new ValidationError(
-        'The Sheriff Checkpoint is not ready: an administrator must set the Verified Citizen role with `/config role verified <roleId>`.',
+        'The Sheriff Checkpoint is not ready: an administrator must set the Verified Citizen role with `$config role verified <roleId>`.',
       );
     }
 
@@ -285,7 +285,7 @@ export class VerificationService {
         .setTitle('🔪 A New Citizen Entered MurderMystery2!')
         .setColor(EMBED_COLORS.PRIMARY)
         .setDescription(
-          `${userMention(userId)} cleared the **Sheriff Checkpoint**! Create your character with \`/character create\` and check \`/rules\` before entering a scene.`,
+          `${userMention(userId)} cleared the **Sheriff Checkpoint**! Create your character with \`$character create\` and check \`$rules\` before entering a scene.`,
         )
         .setFooter(BOT_BRAND.footer);
       await this.messagesApi
@@ -297,7 +297,7 @@ export class VerificationService {
   }
 
   /**
-   * Unified entry point used by `/verify [code]` and `mm2:verify:start` / `mm2:verify:instant` buttons.
+   * Unified entry point used by `$verify [code]` and `mm2:verify:start` / `mm2:verify:instant` buttons.
    */
   async verifyMember({
     serverId,

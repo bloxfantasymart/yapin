@@ -5,7 +5,7 @@ import { pingDatabase } from '../database/connection.js';
 export const pingCommand = {
   name: 'ping',
   description: 'Check MM2 Helper Gateway status, uptime, and JSON database health.',
-  usage: '/ping',
+  usage: '$ping',
   category: 'utility',
   staffOnly: false,
 

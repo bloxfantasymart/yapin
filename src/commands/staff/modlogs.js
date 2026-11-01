@@ -7,7 +7,7 @@ import { extractYapinUserId, userMention } from '../../utils/ids.js';
 export const modlogsCommand = {
   name: 'modlogs',
   description: 'View complete moderation Case File history for a MurderMystery2 member.',
-  usage: '/modlogs <@user>',
+  usage: '$modlogs <@user>',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'staff',
@@ -15,7 +15,7 @@ export const modlogsCommand = {
   async execute(ctx) {
     const { positional, kv } = parseCommandArgs(ctx.event.args || '');
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
-    if (!targetUserId) throw new ValidationError('Usage: `/modlogs <@user>`');
+    if (!targetUserId) throw new ValidationError('Usage: `$modlogs <@user>`');
 
     const cases = await ctx.repositories.cases.listByTarget(ctx.event.server_id, targetUserId, {
       limit: 15,

@@ -16,7 +16,7 @@ const CATEGORY_LABELS = {
 export const reportCommand = {
   name: 'report',
   description: 'Submit a private report about harassment, unsafe links, disruptive conduct, or another server concern.',
-  usage: '/report <@member> <category> <details> [evidence=https://...]',
+  usage: '$report <@member> <category> <details> [evidence=https://...]',
   category: 'moderation',
   staffOnly: false,
 
@@ -25,7 +25,7 @@ export const reportCommand = {
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
     if (!targetUserId) {
       throw new ValidationError(
-        'Usage: `/report <@member> <category> <what happened>`',
+        'Usage: `$report <@member> <category> <what happened>`',
       );
     }
 

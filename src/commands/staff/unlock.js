@@ -3,7 +3,7 @@ import { parseCommandArgs } from '../../utils/argParser.js';
 export const unlockCommand = {
   name: 'unlock',
   description: 'Lift a Sheriff Lockdown on the current channel.',
-  usage: '/unlock [reason]',
+  usage: '$unlock [reason]',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'moderator',

@@ -78,7 +78,7 @@ export class RoleplayService {
       (draft) => {
         if (draft.characters.length >= 5) {
           throw new ValidationError(
-            'You can store up to 5 characters. Delete an old character first with `/character delete`.',
+            'You can store up to 5 characters. Delete an old character first with `$character delete`.',
           );
         }
         draft.characters.push(character);
@@ -268,7 +268,7 @@ export class RoleplayService {
   }
 
   /**
-   * Toggles a configured MurderMystery2 member notification role (`mm2:selfrole:<key>` or `/roles toggle`).
+   * Toggles a configured MurderMystery2 member notification role (`mm2:selfrole:<key>` or `$roles toggle`).
    */
   async toggleSelfRole({ serverId, userId, roleKey }) {
     const cfg = await this.serverConfigRepo.getOrCreate(serverId);

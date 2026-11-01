@@ -5,7 +5,7 @@ import { extractYapinUserId } from '../../utils/ids.js';
 export const purgeCommand = {
   name: 'purge',
   description: 'Bulk-delete up to 100 recent channel messages (optionally filtered by user).',
-  usage: '/purge <1-100> [@user]',
+  usage: '$purge <1-100> [@user]',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'moderator',
@@ -14,7 +14,7 @@ export const purgeCommand = {
     const { positional, kv } = parseCommandArgs(ctx.event.args || '');
     const count = Number(kv.count || positional[0]);
     if (!Number.isInteger(count) || count < 1 || count > 100) {
-      throw new ValidationError('Usage: `/purge <1-100> [@user]`');
+      throw new ValidationError('Usage: `$purge <1-100> [@user]`');
     }
     const targetUserId = (kv.user || positional[1])
       ? extractYapinUserId(kv.user || positional[1])

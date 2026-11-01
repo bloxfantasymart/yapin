@@ -7,7 +7,7 @@ import { extractYapinUserId } from '../utils/ids.js';
 export const rankCommand = {
   name: 'rank',
   description: 'Inspect your MurderMystery2 Rank, Level, and XP progress bar.',
-  usage: '/rank [@user]',
+  usage: '$rank [@user]',
   category: 'leveling',
   staffOnly: false,
 

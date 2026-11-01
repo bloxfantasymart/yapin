@@ -7,7 +7,7 @@ import { extractYapinUserId, userMention } from '../../utils/ids.js';
 export const warningsCommand = {
   name: 'warnings',
   description: 'Inspect recorded warnings for a MurderMystery2 member.',
-  usage: '/warnings <@user>',
+  usage: '$warnings <@user>',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'trialmod',
@@ -16,7 +16,7 @@ export const warningsCommand = {
     const { positional, kv } = parseCommandArgs(ctx.event.args || '');
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
     if (!targetUserId) {
-      throw new ValidationError('Usage: `/warnings <@user>`');
+      throw new ValidationError('Usage: `$warnings <@user>`');
     }
 
     const cases = await ctx.repositories.cases.listByTarget(ctx.event.server_id, targetUserId, {

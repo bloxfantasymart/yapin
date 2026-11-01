@@ -6,7 +6,7 @@ import { extractYapinUserId } from '../../utils/ids.js';
 export const unbanCommand = {
   name: 'unban',
   description: 'Lift an active MurderMystery2 Ban from a user.',
-  usage: '/unban <@user|uuid> [reason]',
+  usage: '$unban <@user|uuid> [reason]',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'moderator',
@@ -16,7 +16,7 @@ export const unbanCommand = {
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
     const reason = kv.reason || positional.slice(1).join(' ') || 'Ban lifted by Moderator';
     if (!targetUserId) {
-      throw new ValidationError('Usage: `/unban <@user|uuid> [reason]`');
+      throw new ValidationError('Usage: `$unban <@user|uuid> [reason]`');
     }
 
     const modCase = await ctx.services.moderation.unbanUser({

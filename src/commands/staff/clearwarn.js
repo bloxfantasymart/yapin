@@ -4,7 +4,7 @@ import { ValidationError } from '../../utils/errors.js';
 export const clearwarnCommand = {
   name: 'clearwarn',
   description: 'Pardon / clear an active MurderMystery2 Warning Case File.',
-  usage: '/clearwarn <CASE-ID> [reason]',
+  usage: '$clearwarn <CASE-ID> [reason]',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'moderator',
@@ -14,7 +14,7 @@ export const clearwarnCommand = {
     const caseId = (kv.case || kv.id || positional[0] || '').toUpperCase();
     const reason = kv.reason || positional.slice(1).join(' ') || 'Cleared by Moderator';
     if (!caseId) {
-      throw new ValidationError('Usage: `/clearwarn <CASE-ID> [reason]`');
+      throw new ValidationError('Usage: `$clearwarn <CASE-ID> [reason]`');
     }
 
     const cleared = await ctx.services.moderation.clearWarning({

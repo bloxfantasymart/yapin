@@ -4,11 +4,13 @@
  * Source: https://www.yapin.gg/developers (https://www.yapper.website/developers)
  */
 
+export const BOT_PREFIX = '$';
+
 export const BOT_BRAND = Object.freeze({
   name: 'MM2 Helper',
   botName: 'MM2 Helper',
   serverName: 'MurderMystery2',
-  statusText: '/verify • MurderMystery2',
+  statusText: '$verify • MurderMystery2',
   tagline: 'MM2 Helper • Verification, Support, Cases & Community',
   footer: 'MurderMystery2 • MM2 Helper',
 });
@@ -152,7 +154,7 @@ export const DEFAULT_SERVER_RULES = [
   '',
   '**2. Keep character actions separate from outside information.** Do not use private messages, streams, profiles, or information learned outside a scene to influence what your character knows or does. Mark out-of-character discussion clearly.',
   '',
-  '**3. Make scenes collaborative.** Describe what your character attempts; do not decide another person’s actions, thoughts, injuries, or outcome. Give others a reasonable chance to respond. Use `/rp roll` when participants cannot agree on a fair outcome.',
+  '**3. Make scenes collaborative.** Describe what your character attempts; do not decide another person’s actions, thoughts, injuries, or outcome. Give others a reasonable chance to respond. Use `$rp roll` when participants cannot agree on a fair outcome.',
   '',
   '**4. No random attacks or forced outcomes.** An attack, accusation, arrest, or detention needs a clear in-character reason and reasonable buildup. Do not repeatedly target someone or use a game-round result to justify harassment.',
   '',
@@ -164,13 +166,13 @@ export const DEFAULT_SERVER_RULES = [
   '',
   '**8. Keep channels usable.** Use the right channel; no spam, flooding, mention abuse, disruptive formatting, or restriction evasion with alternate accounts.',
   '',
-  '**9. Reports are leads, not verdicts.** Submit a truthful report with relevant context through `/report` or a private ticket. Do not organize pile-ons or publish accusations. Staff review context and all available accounts; a report alone is not proof.',
+  '**9. Reports are leads, not verdicts.** Submit a truthful report with relevant context through `$report` or a private ticket. Do not organize pile-ons or publish accusations. Staff review context and all available accounts; a report alone is not proof.',
   '',
   '**10. Moderation and appeals.** Staff may remove harmful content and apply proportionate action based on context, evidence, and prior history. Do not evade an active restriction. Appeal calmly through a private ticket.',
   '',
   '**11. Platform rules apply.** Yapin.gg rules apply throughout the server. Staff may pause a scene or move discussion to a private ticket to protect members or review a case.',
   '',
-  '**Getting started:** review these standards, complete verification using the button above, then use `/help` and `/character create`. Open a support ticket if you need assistance.',
+  '**Getting started:** review these standards, complete verification using the button above, then use `$help` and `$character create`. Open a support ticket if you need assistance.',
 ].join('\n');
 
 export const DEFAULT_MOD_APP_QUESTIONS = Object.freeze([

@@ -4,7 +4,7 @@ import { ValidationError } from '../../utils/errors.js';
 export const slowmodeCommand = {
   name: 'slowmode',
   description: 'Set or disable message slowmode in the current MurderMystery2 channel.',
-  usage: '/slowmode <seconds|off>',
+  usage: '$slowmode <seconds|off>',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'trialmod',
@@ -12,7 +12,7 @@ export const slowmodeCommand = {
   async execute(ctx) {
     const { positional, kv } = parseCommandArgs(ctx.event.args || '');
     const raw = String(kv.seconds || positional[0] || '').toLowerCase();
-    if (!raw) throw new ValidationError('Usage: `/slowmode <seconds|off>`');
+    if (!raw) throw new ValidationError('Usage: `$slowmode <seconds|off>`');
 
     const seconds = raw === 'off' || raw === '0' ? 0 : Number(raw);
     if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21600) {

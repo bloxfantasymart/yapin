@@ -6,7 +6,7 @@ import { ValidationError } from '../utils/errors.js';
 export const characterCommand = {
   name: 'character',
   description: 'Create and manage your MurderMystery2 character profiles.',
-  usage: '/character <create|list|switch|delete> ...',
+  usage: '$character <create|list|switch|delete> ...',
   category: 'community',
   staffOnly: false,
 
@@ -60,7 +60,7 @@ export const characterCommand = {
         .setDescription(
           lines.length > 0
             ? lines.join('\n')
-            : `No characters registered yet. Create your first character:\n\`/character create Detective Vance | SHERIFF | Golden Luger | Veteran investigator\``,
+            : `No characters registered yet. Create your first character:\n\`$character create Detective Vance | SHERIFF | Golden Luger | Veteran investigator\``,
         )
         .setFooter(`Alignments: ${MM2_ALIGNMENTS.join(', ')} • ${BOT_BRAND.botName}`);
 
@@ -70,7 +70,7 @@ export const characterCommand = {
 
     if (sub === 'switch') {
       const target = kv.id || positional.slice(1).join(' ');
-      if (!target) throw new ValidationError('Usage: `/character switch <Character Name or CHR-ID>`');
+      if (!target) throw new ValidationError('Usage: `$character switch <Character Name or CHR-ID>`');
       const { character } = await ctx.services.roleplay.switchCharacter({
         userId: ctx.event.author_id,
         characterIdOrName: target,
@@ -83,7 +83,7 @@ export const characterCommand = {
 
     if (sub === 'delete') {
       const target = kv.id || positional.slice(1).join(' ');
-      if (!target) throw new ValidationError('Usage: `/character delete <CHR-ID or exact Name>`');
+      if (!target) throw new ValidationError('Usage: `$character delete <CHR-ID or exact Name>`');
       const { removed } = await ctx.services.roleplay.deleteCharacter({
         userId: ctx.event.author_id,
         characterIdOrName: target,
@@ -95,7 +95,7 @@ export const characterCommand = {
     }
 
     throw new ValidationError(
-      'Subcommands: `/character create`, `/character list`, `/character switch`, `/character delete`.',
+      'Subcommands: `$character create`, `$character list`, `$character switch`, `$character delete`.',
     );
   },
 };

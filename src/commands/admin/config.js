@@ -20,7 +20,7 @@ const CHANNEL_SLOT_MAP = {
 export const configCommand = {
   name: 'config',
   description: 'View or configure MurderMystery2 roles, log channels, verification, apps, and Auto-Mod.',
-  usage: '/config <view|role|channel|verify|rules|apps|automod|levelrole|selfrole> ...',
+  usage: '$config <view|role|channel|verify|rules|apps|automod|levelrole|selfrole> ...',
   category: 'admin',
   staffOnly: true,
   requiredRole: 'admin',
@@ -70,7 +70,7 @@ export const configCommand = {
       const roleId = String(positional[2] || '').replace(/[<@&#>]/g, '');
       if (!slot || !roleId) {
         throw new ValidationError(
-          'Usage: `/config role <admin|mod|trialmod|support|verified|unverified|muted> <roleId>`',
+          'Usage: `$config role <admin|mod|trialmod|support|verified|unverified|muted> <roleId>`',
         );
       }
 
@@ -120,7 +120,7 @@ export const configCommand = {
       const dotPath = CHANNEL_SLOT_MAP[slot];
       if (!dotPath || !rawCh) {
         throw new ValidationError(
-          `Usage: \`/config channel <${Object.keys(CHANNEL_SLOT_MAP).join('|')}> <channelId|none>\``,
+          `Usage: \`$config channel <${Object.keys(CHANNEL_SLOT_MAP).join('|')}> <channelId|none>\``,
         );
       }
       const value = rawCh.toLowerCase() === 'none' ? null : rawCh;
@@ -131,7 +131,7 @@ export const configCommand = {
 
     if (sub === 'rules') {
       if ((positional[1] || '').toLowerCase() !== 'reset') {
-        throw new ValidationError('Usage: `/config rules reset` restores the official MurderMystery2 community standards.');
+        throw new ValidationError('Usage: `$config rules reset` restores the official MurderMystery2 community standards.');
       }
       await ctx.repositories.serverConfigs.updateConfig(serverId, { rulesText: DEFAULT_SERVER_RULES });
       await ctx.services.log.record({
@@ -143,14 +143,14 @@ export const configCommand = {
         targetId: serverId,
         correlationId: ctx.correlationId,
       });
-      await ctx.reply({ content: '✅ Official MurderMystery2 community standards restored. Review them with `/rules`.' });
+      await ctx.reply({ content: '✅ Official MurderMystery2 community standards restored. Review them with `$rules`.' });
       return;
     }
 
     if (sub === 'verify') {
       const mode = (kv.mode || positional[1] || '').toUpperCase();
       if (!['INSTANT', 'CODE'].includes(mode)) {
-        throw new ValidationError('Usage: `/config verify <INSTANT|CODE>`');
+        throw new ValidationError('Usage: `$config verify <INSTANT|CODE>`');
       }
       await ctx.repositories.serverConfigs.updateConfig(serverId, {
         'verification.mode': mode,
@@ -196,7 +196,7 @@ export const configCommand = {
       const level = String(positional[1] || '');
       const roleId = String(positional[2] || '').replace(/[<@&#>]/g, '');
       if (!/^\d+$/.test(level) || !roleId) {
-        throw new ValidationError('Usage: `/config levelrole <levelNumber> <roleId>`');
+        throw new ValidationError('Usage: `$config levelrole <levelNumber> <roleId>`');
       }
       const next = { ...cfg.roles.levelRewards, [level]: roleId };
       await ctx.repositories.serverConfigs.updateConfig(serverId, {
@@ -210,7 +210,7 @@ export const configCommand = {
       const key = String(positional[1] || '').toLowerCase();
       const roleId = String(positional[2] || '').replace(/[<@&#>]/g, '');
       if (!key || !roleId) {
-        throw new ValidationError('Usage: `/config selfrole <key e.g. events> <roleId|none>`');
+        throw new ValidationError('Usage: `$config selfrole <key e.g. events> <roleId|none>`');
       }
       const next = { ...cfg.roles.selfRoles };
       if (roleId.toLowerCase() === 'none') delete next[key];
@@ -223,7 +223,7 @@ export const configCommand = {
     }
 
     throw new ValidationError(
-      'Subcommands: `/config view`, `/config role`, `/config channel`, `/config verify`, `/config rules reset`, `/config apps`, `/config automod`, `/config levelrole`, `/config selfrole`.',
+      'Subcommands: `$config view`, `$config role`, `$config channel`, `$config verify`, `$config rules reset`, `$config apps`, `$config automod`, `$config levelrole`, `$config selfrole`.',
     );
   },
 };

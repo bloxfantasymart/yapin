@@ -5,7 +5,7 @@ import { extractYapinUserId, userMention } from '../../utils/ids.js';
 export const verifyuserCommand = {
   name: 'verifyuser',
   description: 'Manually verify or revoke verification for a MurderMystery2 member.',
-  usage: '/verifyuser <verify|unverify> <@user> [reason]',
+  usage: '$verifyuser <verify|unverify> <@user> [reason]',
   category: 'verification',
   staffOnly: true,
   requiredRole: 'moderator',
@@ -17,7 +17,7 @@ export const verifyuserCommand = {
     const reason = kv.reason || positional.slice(2).join(' ') || 'Staff verification override';
 
     if (!['verify', 'unverify'].includes(action) || !targetUserId) {
-      throw new ValidationError('Usage: `/verifyuser <verify|unverify> <@user> [reason]`');
+      throw new ValidationError('Usage: `$verifyuser <verify|unverify> <@user> [reason]`');
     }
 
     await ctx.services.verification.staffSetVerification({

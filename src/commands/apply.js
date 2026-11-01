@@ -6,7 +6,7 @@ import { ValidationError } from '../utils/errors.js';
 export const applyCommand = {
   name: 'apply',
   description: 'Submit an official MurderMystery2 Trial Sheriff (Moderator) Application.',
-  usage: '/apply <Age> | <Timezone> | <Daily Hours> | <Experience> | <Why You> | <Incident Review Scenario>',
+  usage: '$apply <Age> | <Timezone> | <Daily Hours> | <Experience> | <Why You> | <Incident Review Scenario>',
   category: 'applications',
   staffOnly: false,
 
@@ -27,7 +27,7 @@ export const applyCommand = {
     if (!answers.age || !answers.timezone || !answers.hours || !answers.experience || !answers.reason || !answers.scenario) {
       throw new ValidationError(
         'Please complete all 6 fields separated by `|`:\n' +
-          '`/apply 18 | EST (UTC-5) | 3-4h/day | Moderated two online communities | Why you want to serve this community | Review context and evidence before acting`',
+          '`$apply 18 | EST (UTC-5) | 3-4h/day | Moderated two online communities | Why you want to serve this community | Review context and evidence before acting`',
       );
     }
 

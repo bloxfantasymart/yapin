@@ -11,7 +11,7 @@ import { logger } from '../../src/utils/logger.js';
 import { createInMemoryRepositories } from '../helpers/inMemoryRepositories.js';
 import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
 
-describe('MM2 Helper — End-to-End Slash Command Execution Across All 36 Commands', () => {
+describe('MM2 Helper — End-to-End Native and Prefix Command Execution Across All 36 Commands', () => {
   it('executes community, leveling, character, ticket, staff application, moderation, and admin commands end-to-end', async () => {
     const mock = createMockYapinFetch();
     const serverId = mock.defaultServerId;
@@ -87,6 +87,21 @@ describe('MM2 Helper — End-to-End Slash Command Execution Across All 36 Comman
       return list[list.length - 1];
     };
 
+    const runPrefix = async (authorId, content, channelId = 'ch-rp') => {
+      const id = `prefix-msg-${msgSeq++}`;
+      await handler.handleMessage({
+        id,
+        content,
+        server_id: serverId,
+        channel_id: channelId,
+        author_id: authorId,
+        username: `u_${authorId.slice(0, 4)}`,
+        author_bot: false,
+      });
+      const list = mock.state.messages.get(channelId) || [];
+      return list[list.length - 1];
+    };
+
     // 1. Admin configures roles, channels, instant verify, selfrole, levelrole, panels
     await runCmd(adminId, 'config', 'role admin role-admin');
     await runCmd(adminId, 'config', 'role mod role-mod');
@@ -109,7 +124,13 @@ describe('MM2 Helper — End-to-End Slash Command Execution Across All 36 Comman
     expect(checkpointButtonIds).toContain('mm2:verify:start');
     expect(checkpointButtonIds).toContain('mm2:verify:rules');
 
-    // 2. UserA runs /verify, /rules, /help, /serverinfo, /daily, /rank, /profile, /leaderboard
+    const prefixedRules = await runPrefix(userA, '$rules');
+    expect(prefixedRules.embeds[0].title).toContain('COMMUNITY STANDARDS');
+    const defaultVerifyPanel = await runPrefix(adminId, '$panel');
+    expect(defaultVerifyPanel.components[0].components.map((button) => button.custom_id)).toContain('mm2:verify:start');
+    expect((await runPrefix(adminId, '$applications')).embeds).toHaveLength(1);
+
+    // 2. UserA runs $verify, $rules, $help, $serverinfo, $daily, $rank, $profile, $leaderboard
     const verifyMsg = await runCmd(userA, 'verify');
     expect(verifyMsg.embeds[0].title).toContain('Sheriff Checkpoint');
     expect((await repos.users.findByYapinId(userA)).verification.verified).toBe(false);

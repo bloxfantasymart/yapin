@@ -6,7 +6,7 @@ import { userMention } from '../../utils/ids.js';
 export const applicationsCommand = {
   name: 'applications',
   description: 'List MurderMystery2 Moderator Applications by status or inspect one.',
-  usage: '/applications [PENDING|UNDER_REVIEW|ACCEPTED|DENIED]',
+  usage: '$applications [PENDING|UNDER_REVIEW|ACCEPTED|DENIED]',
   category: 'applications',
   staffOnly: true,
   requiredRole: 'staff',
@@ -36,7 +36,7 @@ export const applicationsCommand = {
           ? lines.join('\n')
           : '_No Moderator Applications match this filter._',
       )
-      .setFooter(`Total: ${list.total} • Review via /appreview <APP-ID> <accept|deny|review> • ${BOT_BRAND.botName}`);
+      .setFooter(`Total: ${list.total} • Review via $appreview <APP-ID> <accept|deny|review> • ${BOT_BRAND.botName}`);
 
     await ctx.reply({ embeds: [embed] });
   },

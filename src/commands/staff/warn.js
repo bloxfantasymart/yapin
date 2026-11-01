@@ -6,7 +6,7 @@ import { extractYapinUserId } from '../../utils/ids.js';
 export const warnCommand = {
   name: 'warn',
   description: 'Issue an official MurderMystery2 Sheriff Warning Case File.',
-  usage: '/warn <@user> <reason>',
+  usage: '$warn <@user> <reason>',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'trialmod',
@@ -16,7 +16,7 @@ export const warnCommand = {
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
     const reason = kv.reason || positional.slice(1).join(' ');
     if (!targetUserId || !reason) {
-      throw new ValidationError('Usage: `/warn <@user> <reason>`');
+      throw new ValidationError('Usage: `$warn <@user> <reason>`');
     }
 
     const { modCase, user, autoMuteCase } = await ctx.services.moderation.warnUser({

@@ -6,7 +6,7 @@ import { extractYapinUserId } from '../utils/ids.js';
 export const ticketCommand = {
   name: 'ticket',
   description: 'Open or manage private MurderMystery2 support and character tickets.',
-  usage: '/ticket <open|view|claim|assign|note|close|reopen> ...',
+  usage: '$ticket <open|view|claim|assign|note|close|reopen> ...',
   category: 'tickets',
   staffOnly: false,
 
@@ -70,7 +70,7 @@ export const ticketCommand = {
       const ticketId = (kv.id || positional[1] || '').toUpperCase();
       const staffId = extractYapinUserId(kv.staff || positional[2] || '');
       if (!ticketId || !staffId) {
-        throw new ValidationError('Usage: `/ticket assign <TKT-ID> <@staff>`');
+        throw new ValidationError('Usage: `$ticket assign <TKT-ID> <@staff>`');
       }
       const updated = await ctx.services.ticket.assignTicket({
         serverId: ctx.event.server_id,
@@ -87,7 +87,7 @@ export const ticketCommand = {
       const ticketId = (kv.id || positional[1] || '').toUpperCase();
       const content = kv.text || positional.slice(2).join(' ');
       if (!ticketId || !content) {
-        throw new ValidationError('Usage: `/ticket note <TKT-ID> <message>`');
+        throw new ValidationError('Usage: `$ticket note <TKT-ID> <message>`');
       }
       const updated = await ctx.services.ticket.addNote({
         serverId: ctx.event.server_id,
@@ -106,7 +106,7 @@ export const ticketCommand = {
     if (sub === 'close') {
       const ticketId = (kv.id || positional[1] || '').toUpperCase();
       const reason = kv.reason || positional.slice(2).join(' ') || 'Resolved';
-      if (!ticketId) throw new ValidationError('Usage: `/ticket close <TKT-ID> [reason]`');
+      if (!ticketId) throw new ValidationError('Usage: `$ticket close <TKT-ID> [reason]`');
       const closed = await ctx.services.ticket.closeTicket({
         serverId: ctx.event.server_id,
         ticketId,
@@ -123,7 +123,7 @@ export const ticketCommand = {
     if (sub === 'reopen') {
       const ticketId = (kv.id || positional[1] || '').toUpperCase();
       const reason = kv.reason || positional.slice(2).join(' ') || 'Reopened by Staff';
-      if (!ticketId) throw new ValidationError('Usage: `/ticket reopen <TKT-ID> [reason]`');
+      if (!ticketId) throw new ValidationError('Usage: `$ticket reopen <TKT-ID> [reason]`');
       const reopened = await ctx.services.ticket.reopenTicket({
         serverId: ctx.event.server_id,
         ticketId,
@@ -139,7 +139,7 @@ export const ticketCommand = {
     }
 
     throw new ValidationError(
-      'Subcommands: `/ticket open`, `/ticket view`, `/ticket claim`, `/ticket assign`, `/ticket note`, `/ticket close`, `/ticket reopen`.',
+      'Subcommands: `$ticket open`, `$ticket view`, `$ticket claim`, `$ticket assign`, `$ticket note`, `$ticket close`, `$ticket reopen`.',
     );
   },
 };

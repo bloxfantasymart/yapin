@@ -6,7 +6,7 @@ import { extractYapinUserId } from '../../utils/ids.js';
 export const unmuteCommand = {
   name: 'unmute',
   description: 'Lift an active Mute from a MurderMystery2 member.',
-  usage: '/unmute <@user> [reason]',
+  usage: '$unmute <@user> [reason]',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'trialmod',
@@ -16,7 +16,7 @@ export const unmuteCommand = {
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
     const reason = kv.reason || positional.slice(1).join(' ') || 'Unmuted by Staff';
     if (!targetUserId) {
-      throw new ValidationError('Usage: `/unmute <@user> [reason]`');
+      throw new ValidationError('Usage: `$unmute <@user> [reason]`');
     }
 
     const modCase = await ctx.services.moderation.unmuteUser({

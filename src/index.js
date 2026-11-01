@@ -7,7 +7,7 @@ import { YapinMessagesApi } from './api/messages.js';
 import { YapinPermissionsApi } from './api/permissions.js';
 import { createCommandRegistry } from './commands/index.js';
 import { loadEnv } from './config/env.js';
-import { BOT_BRAND } from './config/settings.js';
+import { BOT_BRAND, BOT_PREFIX } from './config/settings.js';
 import { createDashboardServer } from './dashboard/server.js';
 import { connectDatabase, disconnectDatabase } from './database/connection.js';
 import { createJsonRepositories } from './database/repositories/index.js';
@@ -56,6 +56,7 @@ export async function startApplication(rawEnv = process.env, options = {}) {
     baseUrl: env.YAPIN_API_BASE_URL,
     gatewayUrl: env.YAPIN_GATEWAY_URL,
     enableGateway: env.YAPIN_ENABLE_GATEWAY,
+    prefixes: [BOT_PREFIX],
     fetchImpl: options.fetchImpl,
     cursorStore,
     logger,

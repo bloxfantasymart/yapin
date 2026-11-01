@@ -4,7 +4,7 @@ import { BOT_BRAND, EMBED_COLORS, MM2_MAPS } from '../config/settings.js';
 export const serverInfoCommand = {
   name: 'serverinfo',
   description: 'View MurderMystery2 server status, member access, support, and case statistics.',
-  usage: '/serverinfo',
+  usage: '$serverinfo',
   category: 'utility',
   staffOnly: false,
 

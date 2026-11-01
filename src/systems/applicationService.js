@@ -37,7 +37,7 @@ export class ApplicationService {
   }
 
   /**
-   * Submits a new Moderator Application (`/apply`).
+   * Submits a new Moderator Application (`$apply`).
    */
   async submitApplication({
     serverId,
@@ -160,7 +160,7 @@ export class ApplicationService {
   }
 
   /**
-   * Staff review decision (`UNDER_REVIEW`, `ACCEPTED`, `DENIED`) via `/appreview` or buttons.
+   * Staff review decision (`UNDER_REVIEW`, `ACCEPTED`, `DENIED`) via `$appreview` or buttons.
    */
   async reviewApplication({
     serverId,

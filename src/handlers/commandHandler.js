@@ -1,4 +1,5 @@
-import { BOT_BRAND, DEFAULT_COOLDOWNS } from '../config/settings.js';
+import { BOT_BRAND, BOT_PREFIX, DEFAULT_COOLDOWNS } from '../config/settings.js';
+import { parsePrefixedCommand } from '../utils/commandPrefix.js';
 import { generateCorrelationId } from '../utils/ids.js';
 import { withCorrelationLogger } from '../utils/logger.js';
 import { handleCommandError } from './errorHandler.js';
@@ -28,18 +29,39 @@ export class CommandHandler {
 
   async handleMessage(event) {
     if (!event || event.author_bot) return false;
-    if (!event.command) return false;
+
+    const isPlatformCommand = Boolean(event.command);
+    const prefixed = isPlatformCommand ? null : parsePrefixedCommand(event.content || '');
+    if (!isPlatformCommand && prefixed === null) return false;
 
     const botId = this.client?.me?.id || this.client?.botUser?.id;
-    if (botId && Array.isArray(event.command_for) && event.command_for.length > 0) {
-      if (!event.command_for.includes(botId)) {
-        return false;
-      }
+    if (
+      Array.isArray(event.command_for) &&
+      event.command_for.length > 0 &&
+      (!botId || !event.command_for.includes(botId))
+    ) {
+      return false;
     }
 
-    const commandName = String(event.command).toLowerCase();
+    const commandName = String(isPlatformCommand ? event.command : prefixed.command).toLowerCase();
+    const commandArgs = isPlatformCommand ? (event.args || '') : prefixed.args;
+    event = { ...event, command: commandName, args: commandArgs };
+
     const command = this.commandRegistry.get(commandName);
-    if (!command) return false;
+    if (!command) {
+      if (!isPlatformCommand) {
+        await this.messagesApi
+          .sendMessage(event.channel_id, {
+            content: commandName
+              ? `Unknown command: **${BOT_PREFIX}${commandName}**. Use **${BOT_PREFIX}help** to see available commands.`
+              : `Commands start with **${BOT_PREFIX}**. Try **${BOT_PREFIX}help**.`,
+            replyTo: event.id,
+          })
+          .catch(() => undefined);
+        return true;
+      }
+      return false;
+    }
 
     const correlationId = generateCorrelationId();
     const log = withCorrelationLogger(correlationId, {

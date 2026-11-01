@@ -1,7 +1,7 @@
 {
   "name": "mm2-helper-bot",
   "version": "2.0.0",
-  "description": "MM2 Helper — Official MurderMystery2 Roleplay, Verification, Tickets, Mod Applications, Moderation, Leveling & Logs Bot for Yapin.gg",
+  "description": "MM2 Helper — MurderMystery2, Prefix Commands, Verification, Tickets, Mod Applications, Moderation, Leveling & Logs Bot for Yapin.gg",
   "type": "module",
   "main": "src/index.js",
   "engines": {
@@ -23,7 +23,7 @@
     "yapin.gg",
     "mm2",
     "murder-mystery-2",
-    "roleplay",
+    "prefix-commands",
     "moderation",
     "tickets",
     "verification",

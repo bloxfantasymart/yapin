@@ -5,7 +5,7 @@ import { extractYapinUserId, userMention } from '../../utils/ids.js';
 export const xpCommand = {
   name: 'xp',
   description: 'Grant, remove, set level, or reset XP for a MurderMystery2 member.',
-  usage: '/xp <give|remove|setlevel|reset> <@user> [amount]',
+  usage: '$xp <give|remove|setlevel|reset> <@user> [amount]',
   category: 'leveling',
   staffOnly: true,
   requiredRole: 'admin',
@@ -17,7 +17,7 @@ export const xpCommand = {
     const amount = Number(kv.amount ?? positional[2] ?? 0);
 
     if (!['give', 'remove', 'setlevel', 'reset'].includes(action) || !targetUserId) {
-      throw new ValidationError('Usage: `/xp <give|remove|setlevel|reset> <@user> [amount]`');
+      throw new ValidationError('Usage: `$xp <give|remove|setlevel|reset> <@user> [amount]`');
     }
 
     const updated = await ctx.services.leveling.modifyUserXp({

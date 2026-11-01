@@ -3,7 +3,7 @@ import { parseCommandArgs } from '../../utils/argParser.js';
 export const lockCommand = {
   name: 'lock',
   description: 'Lock the current channel for Sheriff investigation (staff-only posting).',
-  usage: '/lock [reason]',
+  usage: '$lock [reason]',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'moderator',

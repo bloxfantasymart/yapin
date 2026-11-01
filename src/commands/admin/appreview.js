@@ -16,7 +16,7 @@ const DECISION_MAP = {
 export const appreviewCommand = {
   name: 'appreview',
   description: 'Accept, deny, or mark a MurderMystery2 Moderator Application under review.',
-  usage: '/appreview <APP-ID> <accept|deny|review> [notes]',
+  usage: '$appreview <APP-ID> <accept|deny|review> [notes]',
   category: 'applications',
   staffOnly: true,
   requiredRole: 'admin',
@@ -29,7 +29,7 @@ export const appreviewCommand = {
     const notes = kv.notes || positional.slice(2).join(' ') || '';
 
     if (!applicationId || !decision) {
-      throw new ValidationError('Usage: `/appreview <APP-ID> <accept|deny|review> [notes]`');
+      throw new ValidationError('Usage: `$appreview <APP-ID> <accept|deny|review> [notes]`');
     }
 
     const updated = await ctx.services.application.reviewApplication({

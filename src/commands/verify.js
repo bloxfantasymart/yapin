@@ -6,7 +6,7 @@ import { AppError, sanitizeErrorMessage } from '../utils/errors.js';
 export const verifyCommand = {
   name: 'verify',
   description: 'Open the Sheriff Checkpoint and complete verification with its button.',
-  usage: '/verify [MM2-XXXX]',
+  usage: '$verify [MM2-XXXX]',
   category: 'verification',
   staffOnly: false,
 
@@ -22,7 +22,7 @@ export const verifyCommand = {
     if (!code) {
       const channelHint = cfg.channels.verifyChannelId
         ? `Open <#${cfg.channels.verifyChannelId}> and press **Verify Account**.`
-        : 'Ask a server administrator to deploy the panel with `/panel verify`.';
+        : 'Ask a server administrator to deploy the panel with `$panel verify`.';
       const embed = new EmbedBuilder()
         .setTitle('🛡️ Sheriff Checkpoint')
         .setColor(EMBED_COLORS.SHERIFF)

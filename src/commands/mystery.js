@@ -6,7 +6,7 @@ import { userMention } from '../utils/ids.js';
 export const mysteryCommand = {
   name: 'mystery',
   description: 'Host a MurderMystery2 mystery round with private Murderer, Sheriff, and Innocent assignments.',
-  usage: '/mystery <start|join|draw|end> [Map or RND-ID]',
+  usage: '$mystery <start|join|draw|end> [Map or RND-ID]',
   category: 'community',
   staffOnly: false,
 
@@ -33,7 +33,7 @@ export const mysteryCommand = {
 
     if (sub === 'join') {
       const roundId = (kv.id || positional[1] || '').toUpperCase();
-      if (!roundId) throw new ValidationError('Usage: `/mystery join <RND-ID>` (or click the Join button!).');
+      if (!roundId) throw new ValidationError('Usage: `$mystery join <RND-ID>` (or click the Join button!).');
       const round = ctx.services.roleplay.joinMysteryRound({
         roundId,
         userId: ctx.event.author_id,
@@ -47,7 +47,7 @@ export const mysteryCommand = {
 
     if (sub === 'draw') {
       const roundId = (kv.id || positional[1] || '').toUpperCase();
-      if (!roundId) throw new ValidationError('Usage: `/mystery draw <RND-ID>`');
+      if (!roundId) throw new ValidationError('Usage: `$mystery draw <RND-ID>`');
       const round = await ctx.services.roleplay.drawMysteryRoles({
         serverId: ctx.event.server_id,
         roundId,
@@ -63,7 +63,7 @@ export const mysteryCommand = {
 
     if (sub === 'end') {
       const roundId = (kv.id || positional[1] || '').toUpperCase();
-      if (!roundId) throw new ValidationError('Usage: `/mystery end <RND-ID>`');
+      if (!roundId) throw new ValidationError('Usage: `$mystery end <RND-ID>`');
       const ended = await ctx.services.roleplay.endMysteryRound({
         serverId: ctx.event.server_id,
         roundId,
@@ -87,6 +87,6 @@ export const mysteryCommand = {
       return;
     }
 
-    throw new ValidationError('Subcommands: `/mystery start [Map]`, `/mystery join <RND-ID>`, `/mystery draw <RND-ID>`, `/mystery end <RND-ID>`.');
+    throw new ValidationError('Subcommands: `$mystery start [Map]`, `$mystery join <RND-ID>`, `$mystery draw <RND-ID>`, `$mystery end <RND-ID>`.');
   },
 };

@@ -14,14 +14,14 @@ import { ValidationError } from '../../utils/errors.js';
 export const panelCommand = {
   name: 'panel',
   description: 'Deploy an interactive MurderMystery2 verification, support, application, or notification panel.',
-  usage: '/panel <verify|tickets|applications|roles>',
+  usage: '$panel [verify|tickets|applications|roles]',
   category: 'admin',
   staffOnly: true,
   requiredRole: 'admin',
 
   async execute(ctx) {
     const { positional, kv } = parseCommandArgs(ctx.event.args || '');
-    const kind = (kv.type || positional[0] || '').toLowerCase();
+    const kind = (kv.type || positional[0] || 'verify').toLowerCase();
     const cfg = await ctx.repositories.serverConfigs.getOrCreate(ctx.event.server_id);
 
     if (kind === 'verify' || kind === 'verification') {
@@ -70,7 +70,7 @@ export const panelCommand = {
     }
 
     throw new ValidationError(
-      'Usage: `/panel <verify|tickets|applications|roles>`',
+      'Usage: `$panel [verify|tickets|applications|roles]`',
     );
   },
 };

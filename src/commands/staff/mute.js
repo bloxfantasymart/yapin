@@ -6,7 +6,7 @@ import { extractYapinUserId, parseDurationMs } from '../../utils/ids.js';
 export const muteCommand = {
   name: 'mute',
   description: 'Place a timed Mute & Muted Role on a MurderMystery2 member.',
-  usage: '/mute <@user> <duration e.g. 30m|2h|1d> <reason>',
+  usage: '$mute <@user> <duration e.g. 30m|2h|1d> <reason>',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'trialmod',
@@ -22,7 +22,7 @@ export const muteCommand = {
       'Rule violation';
 
     if (!targetUserId) {
-      throw new ValidationError('Usage: `/mute <@user> <duration e.g. 30m> <reason>`');
+      throw new ValidationError('Usage: `$mute <@user> <duration e.g. 30m> <reason>`');
     }
 
     const modCase = await ctx.services.moderation.muteUser({

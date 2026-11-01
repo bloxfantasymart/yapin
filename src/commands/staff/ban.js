@@ -6,7 +6,7 @@ import { extractYapinUserId, parseDurationMs } from '../../utils/ids.js';
 export const banCommand = {
   name: 'ban',
   description: 'Issue a MurderMystery2 Ban Case File and quarantine the member.',
-  usage: '/ban <@user> confirm=yes [duration=7d] <reason>',
+  usage: '$ban <@user> confirm=yes [duration=7d] <reason>',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'moderator',
@@ -17,7 +17,7 @@ export const banCommand = {
     const durationMs = kv.duration ? parseDurationMs(kv.duration) : null;
     const reason = kv.reason || positional.slice(1).join(' ');
     if (!targetUserId || !reason) {
-      throw new ValidationError('Usage: `/ban <@user> confirm=yes <reason>`');
+      throw new ValidationError('Usage: `$ban <@user> confirm=yes <reason>`');
     }
 
     const modCase = await ctx.services.moderation.banUser({

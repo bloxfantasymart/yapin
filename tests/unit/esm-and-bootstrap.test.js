@@ -58,6 +58,7 @@ describe('Native Node ESM Module Graph & MM2 Helper Production Bootstrap Verific
       );
 
       expect(mock.state.commands.length).toBe(36);
+      expect(app.client.prefixes).toEqual(['$']);
       const files = await fs.readdir(tmpDir);
       expect(files).toContain('server_configs.json');
 

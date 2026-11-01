@@ -37,7 +37,7 @@ export function buildVerificationPanelEmbed(serverConfig = {}) {
         '**GET STARTED**',
         '01  Review the server standards and support procedures.',
         '02  Select **Verify Account** below. Your clearance is linked to your Yapin account. Never share a password or access token.',
-        '03  After verification, review `/help` and set up your character with `/character create`. For assistance, open a private support case.',
+        '03  After verification, review `$help` and set up your character with `$character create`. For assistance, open a private support case.',
         '',
         '**VERIFICATION**  MM2 Helper records your clearance and assigns the configured member role. If Yapin cannot apply the role, verification is not marked complete. Contact staff through a support case.',
       ].join('\n'),
@@ -163,7 +163,7 @@ export function buildApplicationPanelEmbed(serverConfig = {}) {
         '**APPLICATION INFORMATION**',
         ...DEFAULT_MOD_APP_QUESTIONS.map((q) => `• ${q}`),
         '',
-        'Use the application guide for the required `/apply` format. You can check your submission status at any time.',
+        'Use the application guide for the required `$apply` format. You can check your submission status at any time.',
       ].join('\n'),
     )
     .setFooter(BOT_BRAND.footer);
@@ -377,7 +377,7 @@ export function buildSelfRolesPanelEmbed(selfRoles = {}) {
   const desc =
     entries.length > 0
       ? entries.map(([key, roleId]) => `• **${key}** -> <@&${roleId}>`).join('\n')
-      : '*No self-assignable community roles are configured yet. Admins can add them with `/config selfrole <key> <roleId>`.*';
+      : '*No self-assignable community roles are configured yet. Admins can add them with `$config selfrole <key> <roleId>`.*';
 
   return new EmbedBuilder()
     .setTitle('MURDERMYSTERY2 | NOTIFICATION SETTINGS')

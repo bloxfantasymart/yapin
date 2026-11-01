@@ -79,6 +79,34 @@ describe('WebSocket Gateway, Close-4003 Polling Fallback & Live Signed Webhook R
     expect(savedCursor).toBe(205);
   });
 
+  it('converts configured `$` prefix messages into native command fields', async () => {
+    const mock = createMockYapinFetch();
+    const client = new YapinClient({
+      token: mock.state.botToken,
+      fetchImpl: mock.fetchImpl,
+      prefixes: ['$'],
+      enableGateway: false,
+    });
+    const received = [];
+    client.on('message', (event) => received.push(event));
+
+    await client.ingestEvent({
+      id: 250,
+      type: 'message',
+      data: {
+        id: 'prefix_message_250',
+        channel_id: 'ch_1',
+        server_id: mock.defaultServerId,
+        author_id: 'u_250',
+        content: '$applications review',
+      },
+    });
+
+    expect(received).toHaveLength(1);
+    expect(received[0]).toMatchObject({ command: 'applications', args: 'review' });
+    await client.stop();
+  });
+
   it('automatically falls back to HTTPS Long-Polling when Gateway closes with 4003 (disabled)', async () => {
     const mock = createMockYapinFetch();
     mock.state.events.push({

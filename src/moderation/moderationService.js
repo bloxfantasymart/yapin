@@ -53,7 +53,7 @@ export class ModerationService {
   }
 
   /**
-   * Issues an official Warning Case File (`/warn`), auto-escalating to a Mute if threshold reached.
+   * Issues an official Warning Case File (`$warn`), auto-escalating to a Mute if threshold reached.
    */
   async warnUser({
     serverId,
@@ -132,7 +132,7 @@ export class ModerationService {
   }
 
   /**
-   * Voids / pardons an active Warning Case File (`/clearwarn`).
+   * Voids / pardons an active Warning Case File (`$clearwarn`).
    */
   async clearWarning({ serverId, actorId, caseId, reason, correlationId = null }) {
     const cfg = await this.serverConfigRepo.getOrCreate(serverId);
@@ -191,7 +191,7 @@ export class ModerationService {
   }
 
   /**
-   * Mutes a member (`/mute`), assigning `mutedRoleId` and scheduling timed expiry.
+   * Mutes a member (`$mute`), assigning `mutedRoleId` and scheduling timed expiry.
    */
   async muteUser({
     serverId,
@@ -268,7 +268,7 @@ export class ModerationService {
   }
 
   /**
-   * Lifts an active mute (`/unmute`).
+   * Lifts an active mute (`$unmute`).
    */
   async unmuteUser({
     serverId,
@@ -354,7 +354,7 @@ export class ModerationService {
   }
 
   /**
-   * Issues an official Kick Case File & revokes Verified Citizen access (`/kick`).
+   * Issues an official Kick Case File & revokes Verified Citizen access (`$kick`).
    */
   async kickUser({ serverId, actorId, targetUserId, reason, confirm = false, correlationId = null }) {
     if (!confirm) {
@@ -408,7 +408,7 @@ export class ModerationService {
   }
 
   /**
-   * Bans a member from MurderMystery2 systems (`/ban`).
+   * Bans a member from MurderMystery2 systems (`$ban`).
    */
   async banUser({
     serverId,
@@ -535,7 +535,7 @@ export class ModerationService {
   }
 
   /**
-   * Bulk-deletes recent messages in a channel (`/purge`), optionally filtering by author.
+   * Bulk-deletes recent messages in a channel (`$purge`), optionally filtering by author.
    */
   async purgeChannelMessages({
     serverId,
@@ -634,7 +634,7 @@ export class ModerationService {
   }
 
   /**
-   * Queues a private player report (`/report`) without auto-banning or auto-labeling the accused!
+   * Queues a private player report (`$report`) without auto-banning or auto-labeling the accused!
    */
   async submitReport({
     serverId,

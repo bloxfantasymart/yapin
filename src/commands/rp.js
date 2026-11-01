@@ -8,7 +8,7 @@ import { userMention } from '../utils/ids.js';
 export const rpCommand = {
   name: 'rp',
   description: 'Post character dialogue, open a map scene, record clues, or roll for an outcome.',
-  usage: '/rp <say|scene|clue|roll|maps> ...',
+  usage: '$rp <say|scene|clue|roll|maps> ...',
   category: 'community',
   staffOnly: false,
 
@@ -60,7 +60,7 @@ export const rpCommand = {
         maxLength: 1200,
         fieldName: 'Dialogue',
       });
-      if (!dialogue) throw new ValidationError('Usage: `/rp say <character dialogue>`');
+      if (!dialogue) throw new ValidationError('Usage: `$rp say <character dialogue>`');
       const embed = new EmbedBuilder()
         .setTitle(`🎭 ${speakerLabel}`)
         .setColor(EMBED_COLORS.MYSTERY)
@@ -106,7 +106,7 @@ export const rpCommand = {
         maxLength: 800,
         fieldName: 'Clue',
       });
-      if (!clueText) throw new ValidationError('Usage: `/rp clue <evidence or clue description>`');
+      if (!clueText) throw new ValidationError('Usage: `$rp clue <evidence or clue description>`');
       const embed = new EmbedBuilder()
         .setTitle('🔎 Forensic Clue Discovered!')
         .setColor(EMBED_COLORS.GOLD)
@@ -118,7 +118,7 @@ export const rpCommand = {
     }
 
     throw new ValidationError(
-      'Subcommands: `/rp say`, `/rp scene <Map> <desc>`, `/rp clue <evidence>`, `/rp roll [1d20]`, `/rp maps`.',
+      'Subcommands: `$rp say`, `$rp scene <Map> <desc>`, `$rp clue <evidence>`, `$rp roll [1d20]`, `$rp maps`.',
     );
   },
 };

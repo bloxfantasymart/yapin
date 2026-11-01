@@ -8,7 +8,7 @@ import { extractYapinUserId, userMention } from '../utils/ids.js';
 export const profileCommand = {
   name: 'profile',
   description: 'View a MurderMystery2 member profile, rank, verification, and character.',
-  usage: '/profile [@user]',
+  usage: '$profile [@user]',
   category: 'leveling',
   staffOnly: false,
 
@@ -51,7 +51,7 @@ export const profileCommand = {
         'Active Character',
         activeChar
           ? `**${activeChar.name}** (\`${activeChar.alignment}\` • 🗡️ ${activeChar.weapon})`
-          : '_None registered (`/character create`)_',
+          : '_None registered (`$character create`)_',
         false,
       )
       .addField(

@@ -156,7 +156,7 @@ export class LevelingService {
   }
 
   /**
-   * Claims the 20-hour Sheriff Daily Crate (`/daily`).
+   * Claims the 20-hour Sheriff Daily Crate (`$daily`).
    */
   async claimDaily({ serverId, userId, username = null }) {
     const COOLDOWN_MS = 20 * 3_600_000;
@@ -215,7 +215,7 @@ export class LevelingService {
   }
 
   /**
-   * Staff XP / Level management (`/xp give|remove|setlevel|reset`).
+   * Staff XP / Level management (`$xp give|remove|setlevel|reset`).
    */
   async staffManageXp({
     serverId,

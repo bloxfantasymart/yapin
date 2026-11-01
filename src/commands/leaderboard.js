@@ -6,7 +6,7 @@ import { userMention } from '../utils/ids.js';
 export const leaderboardCommand = {
   name: 'leaderboard',
   description: 'View the MurderMystery2 XP & Rank Leaderboard.',
-  usage: '/leaderboard [page]',
+  usage: '$leaderboard [page]',
   category: 'leveling',
   staffOnly: false,
 

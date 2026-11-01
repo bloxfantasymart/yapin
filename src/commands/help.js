@@ -4,7 +4,7 @@ import { BOT_BRAND, EMBED_COLORS } from '../config/settings.js';
 export const helpCommand = {
   name: 'help',
   description: 'View the MurderMystery2 server guide and MM2 Helper commands.',
-  usage: '/help',
+  usage: '$help',
   category: 'utility',
   staffOnly: false,
 
@@ -24,29 +24,30 @@ export const helpCommand = {
       )
       .addField(
         'VERIFICATION & ACCOUNT',
-        '`/verify` • `/rules` • `/serverinfo` • `/profile` • `/ping` • `/help`',
+        '`$verify` • `$rules` • `$serverinfo` • `$profile` • `$ping` • `$help`',
         false,
       )
       .addField(
         'LEVELS & REWARDS',
-        '`/rank` • `/leaderboard` • `/daily`',
+        '`$rank` • `$leaderboard` • `$daily`',
         false,
       )
       .addField(
         'CHARACTERS & MYSTERY EVENTS',
-        '`/character` (`create|list|switch|delete`) • `/rp` (`say|scene|clue|roll|maps`) • `/mystery` (`start|join|draw|end`) • `/roles`',
+        '`$character` (`create|list|switch|delete`) • `$rp` (`say|scene|clue|roll|maps`) • `$mystery` (`start|join|draw|end`) • `$roles`',
         false,
       )
       .addField(
         'SUPPORT & APPLICATIONS',
-        '`/ticket` (`open|view|note|close`) • `/report` • `/apply`',
+        '`$ticket` (`open|view|note|close`) • `$report` • `$apply`',
         false,
       );
 
     if (access.roles.isStaff) {
+      embed.addField('STAFF APPLICATIONS', '`$applications` — list and filter submitted applications.', false);
       embed.addField(
         'STAFF MODERATION',
-        '`/warn` • `/warnings` • `/clearwarn` • `/mute` • `/unmute` • `/kick` • `/ban` • `/unban` • `/case` • `/modlogs` • `/purge` • `/slowmode` • `/lock` • `/unlock` • `/verifyuser`',
+        '`$warn` • `$warnings` • `$clearwarn` • `$mute` • `$unmute` • `$kick` • `$ban` • `$unban` • `$case` • `$modlogs` • `$purge` • `$slowmode` • `$lock` • `$unlock` • `$verifyuser`',
         false,
       );
     }
@@ -54,7 +55,7 @@ export const helpCommand = {
     if (access.roles.isAdmin) {
       embed.addField(
         'SERVER ADMINISTRATION',
-        '`/applications` • `/appreview` • `/xp` • `/panel` (`verify|tickets|applications|roles`) • `/config`',
+        '`$appreview` • `$xp` • `$panel` (`verify|tickets|applications|roles`) • `$config`',
         false,
       );
     }

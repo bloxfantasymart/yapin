@@ -87,7 +87,7 @@ export class InteractionHandler {
               `🛡️ **Sheriff Checkpoint Guide:**\n` +
               `1. Click **Verify Account** in the official Sheriff Checkpoint panel.\n` +
               `2. If passcode mode is active, the button privately shows your short-lived code.\n` +
-              `3. Need help? Open a ticket with \`/ticket open\`.`,
+              `3. Need help? Open a ticket with \`$ticket open\`.`,
           });
           return true;
         }
@@ -107,7 +107,7 @@ export class InteractionHandler {
           await this.messagesApi.respondToInteraction(interaction, 'ephemeral', {
             content:
               `🛡️ **Sheriff Passcode Issued:** \`${issued.code}\`\n` +
-              `Type \`/verify ${issued.code}\` in this channel within 10 minutes to complete verification!`,
+              `Type \`$verify ${issued.code}\` in this channel within 10 minutes to complete verification!`,
           });
           return true;
         }
@@ -128,14 +128,14 @@ export class InteractionHandler {
           }
           if (res.status === 'CHALLENGE_ISSUED') {
             await this.messagesApi.respondToInteraction(interaction, 'ephemeral', {
-              content: `🛡️ **Sheriff Passcode Issued:** \`${res.code}\`\nRun \`/verify ${res.code}\` within 10 minutes to unlock **MurderMystery2**!`,
+              content: `🛡️ **Sheriff Passcode Issued:** \`${res.code}\`\nRun \`$verify ${res.code}\` within 10 minutes to unlock **MurderMystery2**!`,
             });
             return true;
           }
 
           await this.messagesApi.respondToInteraction(interaction, 'ephemeral', {
             content:
-              '🔫 **Clearance Granted!** Welcome to **MurderMystery2** — you now have Citizen access! Run `/character create` and `/daily` to get started.',
+              '🔫 **Clearance Granted!** Welcome to **MurderMystery2** — you now have Citizen access! Run `$character create` and `$daily` to get started.',
           });
           return true;
         }
@@ -200,7 +200,7 @@ export class InteractionHandler {
             content:
               `⭐ **Apply for MurderMystery2 Trial Sheriff:**\n` +
               `Copy & fill out:\n` +
-              `\`/apply 18 | EST | 3h/day | Prior community staff experience | Why you want to help | How you review a report fairly\``,
+              `\`$apply 18 | EST | 3h/day | Prior community staff experience | Why you want to help | How you review a report fairly\``,
           });
           return true;
         }

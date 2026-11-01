@@ -4,7 +4,7 @@ import { BOT_BRAND, EMBED_COLORS } from '../config/settings.js';
 export const dailyCommand = {
   name: 'daily',
   description: 'Open your daily MurderMystery2 Sheriff Mystery Crate for bonus XP.',
-  usage: '/daily',
+  usage: '$daily',
   category: 'leveling',
   staffOnly: false,
 

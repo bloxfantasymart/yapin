@@ -6,7 +6,7 @@ import { extractYapinUserId } from '../../utils/ids.js';
 export const kickCommand = {
   name: 'kick',
   description: 'Issue a MurderMystery2 Kick Case File and revoke Verified Citizen access.',
-  usage: '/kick <@user> confirm=yes <reason>',
+  usage: '$kick <@user> confirm=yes <reason>',
   category: 'moderation',
   staffOnly: true,
   requiredRole: 'moderator',
@@ -16,7 +16,7 @@ export const kickCommand = {
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
     const reason = kv.reason || positional.slice(1).join(' ');
     if (!targetUserId || !reason) {
-      throw new ValidationError('Usage: `/kick <@user> confirm=yes <reason>`');
+      throw new ValidationError('Usage: `$kick <@user> confirm=yes <reason>`');
     }
 
     const modCase = await ctx.services.moderation.kickUser({
