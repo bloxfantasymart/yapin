@@ -1,6 +1,6 @@
 import {
   DEFAULT_COORDINATION_DISCLAIMER,
-  DEFAULT_SERVER_RULES,
+  DEFAULT_TRADING_RULES,
   EMBED_COLORS,
 } from '../config/settings.js';
 import { EmbedBuilder } from '../api/messages.js';
@@ -14,7 +14,7 @@ export const rulesCommand = {
 
   async execute(ctx) {
     const serverCfg = await ctx.repositories.serverConfig.getOrCreate(ctx.event.server_id);
-    const rules = serverCfg.rulesText || DEFAULT_SERVER_RULES;
+    const rules = serverCfg.rulesText || DEFAULT_TRADING_RULES;
     const disclaimer = serverCfg.disclaimerText || DEFAULT_COORDINATION_DISCLAIMER;
 
     const embed = new EmbedBuilder()

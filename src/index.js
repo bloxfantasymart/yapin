@@ -21,8 +21,8 @@ import { createDashboardServer } from './dashboard/server.js';
  * Bootstraps and runs the production Yapin Middleman Bot with local atomic JSON storage,
  * background expiration sweeps, optional HMAC webhook receiver, and optional OAuth2 Staff Dashboard.
  */
-export async function startApplication(rawEnv = process.env) {
-  const env = loadEnv(rawEnv, { exitOnError: true });
+export async function startApplication(rawEnv = process.env, options = {}) {
+  const env = loadEnv(rawEnv, { exitOnError: options.exitOnError ?? true });
   const logger = createLogger({ level: env.LOG_LEVEL });
 
   logger.info(
@@ -53,6 +53,7 @@ export async function startApplication(rawEnv = process.env) {
     baseUrl: env.YAPIN_API_BASE_URL,
     gatewayUrl: env.YAPIN_GATEWAY_URL,
     enableGateway: env.YAPIN_ENABLE_GATEWAY,
+    fetchImpl: options.fetchImpl,
     cursorStore,
     logger,
   });

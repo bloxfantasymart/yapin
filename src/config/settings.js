@@ -105,6 +105,8 @@ export const DEFAULT_TRADING_RULES = [
   '6. If anything looks wrong, run `/dispute` immediately to freeze trade completion until staff review.',
 ].join('\n');
 
+export const DEFAULT_SERVER_RULES = DEFAULT_TRADING_RULES;
+
 export const DEFAULT_COOLDOWNS = Object.freeze({
   defaultCommandMs: 2500,
   tradeCreateMs: 15000,

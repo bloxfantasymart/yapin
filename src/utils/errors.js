@@ -87,6 +87,12 @@ export class SecurityError extends AppError {
   }
 }
 
+export class DatabaseUnavailableError extends AppError {
+  constructor(message = 'Local JSON storage is temporarily unavailable.', metadata = {}) {
+    super(message, { code: 'STORAGE_UNAVAILABLE', statusCode: 503, expose: false, metadata });
+  }
+}
+
 export class YapinApiError extends AppError {
   /**
    * @param {{ message: string, status: number, method: string, path: string, retryAfter?: number | null, body?: unknown }} details

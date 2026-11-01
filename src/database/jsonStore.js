@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { SecurityError } from '../utils/errors.js';
+import { DatabaseUnavailableError, SecurityError } from '../utils/errors.js';
 import {
   AuditLogModel,
   DashboardSessionModel,
@@ -108,7 +108,9 @@ export class JsonDatabase {
 
   checkHealthy() {
     if (this.simulateFailure) {
-      const err = new Error('JsonStorageError: disk store unavailable (simulated outage)');
+      const err = new DatabaseUnavailableError(
+        'JsonStorageError: disk store unavailable (simulated outage)',
+      );
       err.name = 'JsonStorageError';
       throw err;
     }
