@@ -1,51 +1,49 @@
-import { EMBED_COLORS } from '../config/settings.js';
 import { EmbedBuilder } from '../api/messages.js';
-import { ValidationError } from '../utils/errors.js';
+import { BOT_BRAND, EMBED_COLORS } from '../config/settings.js';
 import { parseCommandArgs } from '../utils/argParser.js';
+import { ValidationError } from '../utils/errors.js';
 import { extractYapinUserId } from '../utils/ids.js';
 
 export const reportCommand = {
   name: 'report',
-  description: 'Report suspicious trade behavior, fake proof, or impersonation for staff review.',
-  usage:
-    '/report user=<@id> [category=IMPERSONATION|FAKE_PROOF|CHARGEBACK_THREAT|OFF_PLATFORM_LURE|OTHER_SUSPICIOUS] reason="Detailed explanation" [trade=TRD-...] [proof=https://...]',
+  description: 'Privately report RDM, FailRP, harassment, or exploits to MurderMystery2 Staff.',
+  usage: '/report <@user> <RDM_FAILRP|HARASSMENT|EXPLOITING|SCAM_LINK|SPAM|OTHER> <details> [evidence=https://...]',
   category: 'moderation',
   staffOnly: false,
 
   async execute(ctx) {
-    const { kv } = parseCommandArgs(ctx.event.args || '');
-    const targetUserId = extractYapinUserId(kv.user || kv.target);
-    const description = kv.reason || kv.description;
-    if (!targetUserId || !description) {
+    const { positional, kv } = parseCommandArgs(ctx.event.args || '');
+    const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
+    if (!targetUserId) {
       throw new ValidationError(
-        'Usage: `/report user=<@uuid> category=IMPERSONATION reason="Detailed description" [trade=TRD-...] [proof=https://...]`',
+        'Usage: `/report <@user> <RDM_FAILRP|HARASSMENT|EXPLOITING|SPAM|OTHER> <what happened>`',
       );
     }
+
+    const category = kv.category || positional[1] || 'RDM_FAILRP';
+    const description = kv.details || kv.reason || positional.slice(2).join(' ');
+    const evidenceUrl = kv.evidence || null;
 
     const report = await ctx.services.moderation.submitReport({
       serverId: ctx.event.server_id,
       reporterId: ctx.event.author_id,
       targetUserId,
-      tradeId: kv.trade ? kv.trade.toUpperCase() : null,
-      category: (kv.category || 'OTHER_SUSPICIOUS').toUpperCase(),
+      category,
       description,
-      evidenceUrl: kv.proof || null,
+      evidenceUrl,
       correlationId: ctx.correlationId,
     });
 
     const embed = new EmbedBuilder()
-      .setTitle(`🛡️ Report Submitted — ${report.reportId}`)
-      .setDescription(
-        'Your report has been queued for confidential staff review (`PENDING_REVIEW`).\n' +
-          '_Note: Unverified reports never automatically label or suspend a user; moderators verify evidence first._',
-      )
+      .setTitle('🚨 Sheriff Dispatch • Report Filed')
       .setColor(EMBED_COLORS.WARNING)
-      .addField('Category', report.category, true)
-      .addField('Related Trade', report.tradeId || 'None', true);
+      .setDescription(
+        `Your report (\`${report.reportId}\`) has been routed privately to **MurderMystery2** Moderators for investigation.\n*Accused players are never automatically punished from unverified reports.*`,
+      )
+      .addField('Report ID', `\`${report.reportId}\``, true)
+      .addField('Category', `\`${report.category}\``, true)
+      .setFooter(BOT_BRAND.footer);
 
-    await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-      embeds: [embed],
-      replyTo: ctx.event.id,
-    });
+    await ctx.reply({ embeds: [embed] });
   },
 };

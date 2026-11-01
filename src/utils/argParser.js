@@ -1,12 +1,10 @@
 /**
- * Command Argument Parser for Yapin.gg
+ * Command Argument Parser for **MM2 Helper** on Yapin.gg
  *
  * Verified Yapin behavior: PUT /commands registers `{ name, description }` only.
- * When a user runs `/middleman partner=<@id> item="Dragon Lore" giving="100 keys" receiving="Dragon Lore" rules=yes`,
- * Yapin delivers `data.command = "middleman"` and `data.args = 'partner=<@id> ...'` as a raw string.
- *
+ * Yapin delivers `data.command` and `data.args` as a raw string.
  * This parser safely tokenizes quoted strings, `key=value` pairs, `--key value` flags,
- * and positional tokens while enforcing strict input bounds.
+ * pipe-delimited segments (`a | b | c`), and positional tokens while enforcing strict bounds.
  */
 
 const MAX_ARGS_LENGTH = 2000;
@@ -151,3 +149,18 @@ export function parseBooleanInput(val) {
 }
 
 export const parseYesBoolean = parseBooleanInput;
+
+/**
+ * Splits a raw string on `|` into trimmed non-empty segments (great for multi-field forms on Yapin).
+ * @param {string} rawArgs
+ * @returns {string[]}
+ */
+export function parsePipeSegments(rawArgs = '') {
+  if (!rawArgs || typeof rawArgs !== 'string') return [];
+  return rawArgs
+    .slice(0, MAX_ARGS_LENGTH)
+    .split('|')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+

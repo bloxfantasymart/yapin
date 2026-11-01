@@ -1,18 +1,22 @@
 import { createServer } from 'node:http';
 import { STAFF_TIERS } from '../api/permissions.js';
-import { ACTIVE_TRADE_STATES, OPEN_TICKET_STATUSES } from '../database/repositories/index.js';
-import { AppError, AuthorizationError, NotFoundError, ValidationError, sanitizeErrorMessage } from '../utils/errors.js';
+import { BOT_BRAND } from '../config/settings.js';
+import { OPEN_TICKET_STATUSES } from '../database/repositories/index.js';
+import {
+  AppError,
+  AuthorizationError,
+  ValidationError,
+  sanitizeErrorMessage,
+} from '../utils/errors.js';
 import { generateCorrelationId } from '../utils/ids.js';
 import {
-  AssignMiddlemanBodySchema,
+  ApplicationReviewBodySchema,
   AuditSearchQuerySchema,
-  CancelTradeBodySchema,
-  CompleteTradeBodySchema,
-  ResolveDisputeBodySchema,
+  ClearWarningBodySchema,
+  ModerationWarnBodySchema,
   TicketCloseBodySchema,
   TicketNoteBodySchema,
   UpdateServerConfigBodySchema,
-  VerifyDepositBodySchema,
 } from './schemas.js';
 import {
   HttpRateLimiter,
@@ -83,8 +87,7 @@ async function readJsonBody(req) {
 }
 
 /**
- * Creates the optional "Login with Yapin'" OAuth2 Staff Dashboard HTTP server.
- * Never exposes `YAPIN_BOT_TOKEN` or `YAPIN_OAUTH_CLIENT_SECRET` to clients.
+ * Creates the optional "Login with Yapin'" OAuth2 **MurderMystery2 Sheriff HQ** HTTP Console.
  */
 export function createDashboardServer({
   oauthClient,
@@ -117,7 +120,10 @@ export function createDashboardServer({
     return session;
   }
 
-  async function requireStaffSession(req, { minTier = STAFF_TIERS.SUPPORT, requireFreshRbac = false } = {}) {
+  async function requireStaffSession(
+    req,
+    { minTier = STAFF_TIERS.SUPPORT, requireFreshRbac = false } = {},
+  ) {
     const session = await resolveAuthenticatedSession(req);
     if (!session) {
       throw new AuthorizationError('Authentication required. Please log in with Yapin.');
@@ -130,7 +136,7 @@ export function createDashboardServer({
       });
       if (!access.roles.isStaff || access.tier < minTier) {
         await repositories.operational.deleteSession(session.sessionIdHash);
-        throw new AuthorizationError('Your server staff permissions were revoked or are insufficient.');
+        throw new AuthorizationError('Your MurderMystery2 staff permissions were revoked or are insufficient.');
       }
       session.staffTier = access.tier;
     }
@@ -155,7 +161,11 @@ export function createDashboardServer({
       const method = (req.method || 'GET').toUpperCase();
 
       if (method === 'GET' && pathname === '/healthz') {
-        return sendJson(res, 200, { status: 'ok', service: 'yapin-middleman-dashboard' });
+        return sendJson(res, 200, {
+          status: 'ok',
+          bot: BOT_BRAND.botName,
+          server: BOT_BRAND.serverName,
+        });
       }
 
       if (method === 'GET' && pathname === '/login') {
@@ -203,7 +213,9 @@ export function createDashboardServer({
           return sendHtml(
             res,
             400,
-            renderLoginPage({ errorMsg: 'Invalid or expired OAuth2 state. Please try signing in again.' }),
+            renderLoginPage({
+              errorMsg: 'Invalid or expired OAuth2 state. Please try signing in again.',
+            }),
           );
         }
 
@@ -235,13 +247,14 @@ export function createDashboardServer({
             targetType: 'SYSTEM',
             targetId: 'dashboard',
             correlationId,
-            metadata: { reason: 'Authenticated Yapin user lacks server staff roles' },
+            metadata: { reason: 'Authenticated Yapin user lacks MurderMystery2 staff roles' },
           });
           return sendHtml(
             res,
             403,
             renderLoginPage({
-              errorMsg: 'Access denied: your Yapin account does not hold an authorized staff role on this server.',
+              errorMsg:
+                'Access denied: your Yapin account does not hold an authorized MurderMystery2 staff role.',
             }),
           );
         }
@@ -312,7 +325,7 @@ export function createDashboardServer({
         );
       }
 
-      // 4. Main Staff Console UI
+      // 4. Main Sheriff HQ Console UI
       if (method === 'GET' && pathname === '/') {
         readLimiter.check(`ip:${clientIp}`);
         const session = await resolveAuthenticatedSession(req);
@@ -341,174 +354,108 @@ export function createDashboardServer({
       if (method === 'GET' && pathname === '/api/overview') {
         readLimiter.check(`ip:${clientIp}`);
         const session = await requireStaffSession(req);
-        const [tradesOut, ticketsOut, openDisputes, staffStats] = await Promise.all([
-          repositories.trades.listTrades({
-            serverId,
-            state: ACTIVE_TRADE_STATES,
-            limit: 50,
-          }),
-          repositories.tickets.listTickets({
-            serverId,
-            status: OPEN_TICKET_STATUSES,
-            limit: 50,
-          }),
-          repositories.disputes.listDisputes({
-            serverId,
-            statuses: ['OPEN', 'UNDER_REVIEW', 'ESCALATED'],
-            limit: 50,
-          }),
-          repositories.users.listStaffLeaderboard({ limit: 20 }),
-        ]);
+        const [verifiedCitizens, appsOut, ticketsOut, casesOut, reportsOut, leaderboardOut] =
+          await Promise.all([
+            repositories.users.countVerified(),
+            repositories.applications.listByServer(serverId, { limit: 25 }),
+            repositories.tickets.listTickets({
+              serverId,
+              status: OPEN_TICKET_STATUSES,
+              limit: 40,
+            }),
+            repositories.cases.listRecentByServer(serverId, { limit: 25 }),
+            repositories.reports.listReports({ serverId, status: 'PENDING_REVIEW', limit: 25 }),
+            repositories.users.getLeaderboard({ page: 1, limit: 10 }),
+          ]);
 
         const visibleTickets = ticketsOut.items.filter(
           (t) => t.type !== 'STAFF_REPORT' || session.staffTier >= STAFF_TIERS.ADMIN,
         );
 
-        const depositQueue = tradesOut.items.filter(
-          (t) =>
-            t.deposits?.traderA?.status === 'REPORTED_SENT' ||
-            t.deposits?.traderB?.status === 'REPORTED_SENT' ||
-            t.state === 'DEPOSIT_CONFIRMATION',
-        );
-
         return sendJson(res, 200, {
-          activeTrades: tradesOut.items,
-          depositQueue,
-          openDisputes: openDisputes.items,
+          verifiedCitizens,
+          applications: appsOut.items,
           openTickets: visibleTickets,
-          staffStats,
+          recentCases: casesOut.items,
+          pendingReports: reportsOut.items,
+          leaderboard: leaderboardOut.items,
         });
       }
 
       let m;
-      if (method === 'GET' && (m = /^\/api\/trades\/([A-Za-z0-9-]+)$/.exec(pathname))) {
-        readLimiter.check(`ip:${clientIp}`);
-        const session = await requireStaffSession(req, { minTier: STAFF_TIERS.MIDDLEMAN });
-        const detail = await services.trade.getTradeForViewer({
-          serverId,
-          tradeId: m[1].toUpperCase(),
-          viewerId: session.yapinUserId,
-        });
-        return sendJson(res, 200, detail);
-      }
 
-      if (method === 'POST' && (m = /^\/api\/trades\/([A-Za-z0-9-]+)\/assign$/.exec(pathname))) {
+      // Moderator Application Review
+      if (
+        method === 'POST' &&
+        (m = /^\/api\/applications\/([A-Za-z0-9-]+)\/review$/.exec(pathname))
+      ) {
         const session = await requireStaffSession(req, {
-          minTier: STAFF_TIERS.MIDDLEMAN,
+          minTier: STAFF_TIERS.ADMIN,
           requireFreshRbac: true,
         });
         enforcePostGuard(req, session);
 
-        const body = AssignMiddlemanBodySchema.parse(await readJsonBody(req));
-        const tradeId = m[1].toUpperCase();
-        const updated = body.reassign
-          ? await services.assignment.reassignMiddleman({
-              serverId,
-              tradeId,
-              newMiddlemanId: body.targetMiddlemanId,
-              actorId: session.yapinUserId,
-              reason: body.reason,
-              correlationId,
-            })
-          : await services.assignment.assignMiddleman({
-              serverId,
-              tradeId,
-              targetMiddlemanId: body.targetMiddlemanId,
-              actorId: session.yapinUserId,
-              reason: body.reason,
-              correlationId,
-            });
-        return sendJson(res, 200, { trade: updated });
-      }
-
-      if (method === 'POST' && (m = /^\/api\/trades\/([A-Za-z0-9-]+)\/verify-deposit$/.exec(pathname))) {
-        const session = await requireStaffSession(req, {
-          minTier: STAFF_TIERS.MIDDLEMAN,
-          requireFreshRbac: true,
-        });
-        enforcePostGuard(req, session);
-
-        const body = VerifyDepositBodySchema.parse(await readJsonBody(req));
-        const updated = await services.deposit.verifyDeposit({
+        const body = ApplicationReviewBodySchema.parse(await readJsonBody(req));
+        const updated = await services.application.reviewApplication({
           serverId,
-          tradeId: m[1].toUpperCase(),
-          traderSideOrUserId: body.traderSideOrUserId,
+          applicationId: m[1].toUpperCase(),
+          actorId: session.yapinUserId,
           decision: body.decision,
           notes: body.notes,
-          actorId: session.yapinUserId,
           correlationId,
         });
-        return sendJson(res, 200, { trade: updated });
+        return sendJson(res, 200, { application: updated });
       }
 
-      if (method === 'POST' && (m = /^\/api\/trades\/([A-Za-z0-9-]+)\/complete$/.exec(pathname))) {
+      // Moderation Case Routes
+      if (method === 'POST' && pathname === '/api/moderation/warn') {
         const session = await requireStaffSession(req, {
-          minTier: STAFF_TIERS.MIDDLEMAN,
+          minTier: STAFF_TIERS.TRIAL_MOD,
           requireFreshRbac: true,
         });
         enforcePostGuard(req, session);
 
-        const body = CompleteTradeBodySchema.parse(await readJsonBody(req));
-        const completed = await services.trade.completeTrade({
+        const body = ModerationWarnBodySchema.parse(await readJsonBody(req));
+        const out = await services.moderation.warnUser({
           serverId,
-          tradeId: m[1].toUpperCase(),
           actorId: session.yapinUserId,
-          decisionNotes: body.decisionNotes,
-          evidenceSummary: body.evidenceSummary,
-          confirm: body.confirm,
-          correlationId,
-        });
-        return sendJson(res, 200, { trade: completed });
-      }
-
-      if (method === 'POST' && (m = /^\/api\/trades\/([A-Za-z0-9-]+)\/cancel$/.exec(pathname))) {
-        const session = await requireStaffSession(req, {
-          minTier: STAFF_TIERS.MIDDLEMAN,
-          requireFreshRbac: true,
-        });
-        enforcePostGuard(req, session);
-
-        const body = CancelTradeBodySchema.parse(await readJsonBody(req));
-        const cancelled = await services.trade.cancelTradeByStaff({
-          serverId,
-          tradeId: m[1].toUpperCase(),
-          actorId: session.yapinUserId,
+          targetUserId: body.targetUserId,
           reason: body.reason,
-          confirm: body.confirm,
           correlationId,
         });
-        return sendJson(res, 200, { trade: cancelled });
+        return sendJson(res, 200, { case: out.modCase });
       }
 
-      if (method === 'POST' && (m = /^\/api\/disputes\/([A-Za-z0-9-]+)\/resolve$/.exec(pathname))) {
+      if (
+        method === 'POST' &&
+        (m = /^\/api\/cases\/([A-Za-z0-9-]+)\/clear$/.exec(pathname))
+      ) {
         const session = await requireStaffSession(req, {
           minTier: STAFF_TIERS.MODERATOR,
           requireFreshRbac: true,
         });
         enforcePostGuard(req, session);
 
-        const body = ResolveDisputeBodySchema.parse(await readJsonBody(req));
-        const resolved = await services.dispute.resolveDispute({
+        const body = ClearWarningBodySchema.parse(await readJsonBody(req));
+        const cleared = await services.moderation.clearWarning({
           serverId,
-          disputeIdOrTradeId: m[1].toUpperCase(),
-          outcome: body.outcome,
-          decisionSummary: body.decisionSummary,
           actorId: session.yapinUserId,
-          confirm: body.confirm,
+          caseId: m[1].toUpperCase(),
+          reason: body.reason,
           correlationId,
         });
-        return sendJson(res, 200, resolved);
+        return sendJson(res, 200, { case: cleared });
       }
 
       // Ticket inspection & management routes
       if (method === 'GET' && (m = /^\/api\/tickets\/([A-Za-z0-9-]+)$/.exec(pathname))) {
         readLimiter.check(`ip:${clientIp}`);
         const session = await requireStaffSession(req);
-        const ticket = await repositories.tickets.findByTicketId(m[1].toUpperCase());
-        if (!ticket || ticket.serverId !== serverId) {
-          throw new NotFoundError('Ticket not found.');
-        }
-        await services.ticket.assertTicketAccess(ticket, session.yapinUserId, { requireStaff: true });
+        const ticket = await services.ticket.getTicketForViewer({
+          serverId,
+          ticketId: m[1].toUpperCase(),
+          viewerId: session.yapinUserId,
+        });
         return sendJson(res, 200, { ticket });
       }
 
@@ -553,9 +500,10 @@ export function createDashboardServer({
         return sendJson(res, 200, { ticket: closed });
       }
 
+      // Append-only Audit Search
       if (method === 'GET' && pathname === '/api/audits') {
         readLimiter.check(`ip:${clientIp}`);
-        await requireStaffSession(req, { minTier: STAFF_TIERS.MIDDLEMAN });
+        await requireStaffSession(req, { minTier: STAFF_TIERS.TRIAL_MOD });
         const q = AuditSearchQuerySchema.parse(Object.fromEntries(url.searchParams.entries()));
         const audits = await repositories.audits.query({
           serverId,
@@ -564,6 +512,7 @@ export function createDashboardServer({
         return sendJson(res, 200, audits);
       }
 
+      // Server Configuration (Admin Only)
       if (method === 'GET' && pathname === '/api/config') {
         readLimiter.check(`ip:${clientIp}`);
         await requireStaffSession(req, { minTier: STAFF_TIERS.ADMIN, requireFreshRbac: true });
@@ -580,15 +529,19 @@ export function createDashboardServer({
 
         const body = UpdateServerConfigBodySchema.parse(await readJsonBody(req));
         const patch = {};
-        if (body.middlemanRoleIds) patch['staffRoles.middlemanRoleIds'] = body.middlemanRoleIds;
-        if (body.moderatorRoleIds) patch['staffRoles.moderatorRoleIds'] = body.moderatorRoleIds;
         if (body.adminRoleIds) patch['staffRoles.adminRoleIds'] = body.adminRoleIds;
+        if (body.moderatorRoleIds) patch['staffRoles.moderatorRoleIds'] = body.moderatorRoleIds;
+        if (body.trialModRoleIds) patch['staffRoles.trialModRoleIds'] = body.trialModRoleIds;
         if (body.supportRoleIds) patch['staffRoles.supportRoleIds'] = body.supportRoleIds;
-        if (body.alertChannelId !== undefined) patch['channels.alertChannelId'] = body.alertChannelId;
-        if (body.auditLogChannelId !== undefined) patch['channels.auditLogChannelId'] = body.auditLogChannelId;
-        if (body.ticketCategoryId !== undefined) patch['channels.ticketCategoryId'] = body.ticketCategoryId;
-        if (body.autoAssignMiddleman !== undefined) patch['tradeLimits.autoAssignMiddleman'] = body.autoAssignMiddleman;
-        if (body.maxActiveTradesPerUser !== undefined) patch['tradeLimits.maxActiveTradesPerUser'] = body.maxActiveTradesPerUser;
+        if (body.verifiedRoleId !== undefined) patch['roles.verifiedRoleId'] = body.verifiedRoleId;
+        if (body.mutedRoleId !== undefined) patch['roles.mutedRoleId'] = body.mutedRoleId;
+        if (body.modLogChannelId !== undefined) patch['channels.modLogChannelId'] = body.modLogChannelId;
+        if (body.modAppLogChannelId !== undefined) patch['channels.modAppLogChannelId'] = body.modAppLogChannelId;
+        if (body.ticketLogChannelId !== undefined) patch['channels.ticketLogChannelId'] = body.ticketLogChannelId;
+        if (body.welcomeChannelId !== undefined) patch['channels.welcomeChannelId'] = body.welcomeChannelId;
+        if (body.verificationMode) patch['verification.mode'] = body.verificationMode;
+        if (body.applicationsOpen !== undefined) patch['applications.open'] = body.applicationsOpen;
+        if (body.autoModEnabled !== undefined) patch['autoMod.enabled'] = body.autoModEnabled;
 
         const updated = await repositories.serverConfigs.updateConfig(serverId, patch);
         await services.audit.record({

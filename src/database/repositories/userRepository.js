@@ -37,160 +37,102 @@ export class JsonUserRepository {
     });
   }
 
-  async incrementStats(yapinUserId, increments = {}) {
-    await this.getOrCreate(yapinUserId);
+  /**
+   * Atomically reads, mutates via `mutator(draft)`, validates with Zod, and persists a user record.
+   */
+  async updateUser(yapinUserId, mutator, username = null) {
+    await this.getOrCreate(yapinUserId, username);
     return this.db.withDocLock(`user:${yapinUserId}`, async () => {
       this.db.checkHealthy();
-      const doc = deepCloneRecord(this.db.store.users[yapinUserId]);
-      for (const [k, v] of Object.entries(increments)) {
-        if (typeof v === 'number' && v !== 0) {
-          doc.tradeStats[k] = (doc.tradeStats[k] || 0) + v;
-        }
-      }
-      if (doc.tradeStats.activeMiddlemanLoad < 0) {
-        doc.tradeStats.activeMiddlemanLoad = 0;
-      }
-      doc.updatedAt = new Date();
-      this.db.store.users[yapinUserId] = UserModel.validate(doc);
+      const draft = deepCloneRecord(this.db.store.users[yapinUserId]);
+      await mutator(draft);
+      draft.updatedAt = new Date();
+      const validated = UserModel.validate(draft);
+      validated.createdAt = this.db.store.users[yapinUserId].createdAt;
+      this.db.store.users[yapinUserId] = validated;
       await this.db.markModified('users');
-      return deepCloneRecord(this.db.store.users[yapinUserId]);
+      return deepCloneRecord(validated);
     });
   }
 
-  async setAvailability(yapinUserId, { available, note = '' }) {
-    await this.getOrCreate(yapinUserId);
-    return this.db.withDocLock(`user:${yapinUserId}`, async () => {
-      this.db.checkHealthy();
-      const doc = deepCloneRecord(this.db.store.users[yapinUserId]);
-      doc.staffAvailability = {
-        available: Boolean(available),
-        note: String(note || '').slice(0, 200),
-        updatedAt: new Date(),
-      };
-      doc.updatedAt = new Date();
-      this.db.store.users[yapinUserId] = UserModel.validate(doc);
-      await this.db.markModified('users');
-      return deepCloneRecord(this.db.store.users[yapinUserId]);
-    });
-  }
-
-  async listAvailableMiddlemen({ maxWorkload = 5 } = {}) {
+  async listLeaderboard({ page = 1, limit = 10 } = {}) {
     this.db.checkHealthy();
-    return Object.values(this.db.store.users)
-      .filter(
-        (u) =>
-          u.staffAvailability?.available === true &&
-          (u.tradeStats?.activeMiddlemanLoad || 0) < maxWorkload &&
-          u.suspension?.active !== true,
-      )
+    const all = Object.values(this.db.store.users)
+      .filter((u) => (u.leveling?.totalXp || 0) > 0 || (u.leveling?.messagesCount || 0) > 0)
       .sort((a, b) => {
-        const loadDiff =
-          (a.tradeStats?.activeMiddlemanLoad || 0) - (b.tradeStats?.activeMiddlemanLoad || 0);
-        if (loadDiff !== 0) return loadDiff;
-        return (
-          (b.tradeStats?.asMiddlemanCompleted || 0) - (a.tradeStats?.asMiddlemanCompleted || 0)
-        );
-      })
-      .slice(0, 25)
-      .map(deepCloneRecord);
-  }
-
-  async addWarning(yapinUserId, warning) {
-    await this.getOrCreate(yapinUserId);
-    return this.db.withDocLock(`user:${yapinUserId}`, async () => {
-      this.db.checkHealthy();
-      const doc = deepCloneRecord(this.db.store.users[yapinUserId]);
-      doc.warnings.push({
-        ...warning,
-        createdAt: warning.createdAt || new Date(),
+        const xpDiff = (b.leveling?.totalXp || 0) - (a.leveling?.totalXp || 0);
+        if (xpDiff !== 0) return xpDiff;
+        return (b.leveling?.messagesCount || 0) - (a.leveling?.messagesCount || 0);
       });
-      doc.updatedAt = new Date();
-      this.db.store.users[yapinUserId] = UserModel.validate(doc);
-      await this.db.markModified('users');
-      return deepCloneRecord(this.db.store.users[yapinUserId]);
-    });
+
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.min(25, Math.max(1, Number(limit) || 10));
+    const offset = (safePage - 1) * safeLimit;
+    return {
+      items: all.slice(offset, offset + safeLimit).map((u, idx) => ({
+        rankPosition: offset + idx + 1,
+        ...deepCloneRecord(u),
+      })),
+      total: all.length,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.max(1, Math.ceil(all.length / safeLimit)),
+    };
   }
 
-  async suspendUser(yapinUserId, { reason, suspendedBy, expiresAt = null }) {
-    await this.getOrCreate(yapinUserId);
-    return this.db.withDocLock(`user:${yapinUserId}`, async () => {
-      this.db.checkHealthy();
-      const doc = deepCloneRecord(this.db.store.users[yapinUserId]);
-      doc.suspension = {
-        active: true,
-        reason,
-        suspendedBy,
-        suspendedAt: new Date(),
-        expiresAt,
-        liftedBy: null,
-        liftedAt: null,
-      };
-      doc.updatedAt = new Date();
-      this.db.store.users[yapinUserId] = UserModel.validate(doc);
-      await this.db.markModified('users');
-      return deepCloneRecord(this.db.store.users[yapinUserId]);
-    });
-  }
-
-  async unsuspendUser(yapinUserId, { liftedBy }) {
-    await this.getOrCreate(yapinUserId);
-    return this.db.withDocLock(`user:${yapinUserId}`, async () => {
-      this.db.checkHealthy();
-      const doc = deepCloneRecord(this.db.store.users[yapinUserId]);
-      doc.suspension.active = false;
-      doc.suspension.liftedBy = liftedBy;
-      doc.suspension.liftedAt = new Date();
-      doc.updatedAt = new Date();
-      this.db.store.users[yapinUserId] = UserModel.validate(doc);
-      await this.db.markModified('users');
-      return deepCloneRecord(this.db.store.users[yapinUserId]);
-    });
-  }
-
-  async updateRiskFlags(
-    yapinUserId,
-    { incOpenReports = 0, incSubstantiated = 0, underStaffReview },
-  ) {
-    await this.getOrCreate(yapinUserId);
-    return this.db.withDocLock(`user:${yapinUserId}`, async () => {
-      this.db.checkHealthy();
-      const doc = deepCloneRecord(this.db.store.users[yapinUserId]);
-      doc.riskFlags.openReportsCount = Math.max(
-        0,
-        (doc.riskFlags.openReportsCount || 0) + incOpenReports,
-      );
-      doc.riskFlags.substantiatedReportsCount = Math.max(
-        0,
-        (doc.riskFlags.substantiatedReportsCount || 0) + incSubstantiated,
-      );
-      if (typeof underStaffReview === 'boolean') {
-        doc.riskFlags.underStaffReview = underStaffReview;
-      }
-      doc.updatedAt = new Date();
-      this.db.store.users[yapinUserId] = UserModel.validate(doc);
-      await this.db.markModified('users');
-      return deepCloneRecord(this.db.store.users[yapinUserId]);
-    });
-  }
-
-  async listStaffLeaderboard({ limit = 20 } = {}) {
+  async getRankPosition(yapinUserId) {
     this.db.checkHealthy();
+    const sorted = Object.values(this.db.store.users).sort(
+      (a, b) => (b.leveling?.totalXp || 0) - (a.leveling?.totalXp || 0),
+    );
+    const index = sorted.findIndex((u) => u.yapinUserId === yapinUserId);
+    return index === -1 ? null : index + 1;
+  }
+
+  async listExpiredMutes(now = new Date(), limit = 50) {
+    this.db.checkHealthy();
+    const cutoff = now.getTime();
     return Object.values(this.db.store.users)
       .filter(
         (u) =>
-          (u.tradeStats?.asMiddlemanClaimed || 0) > 0 ||
-          (u.tradeStats?.asMiddlemanCompleted || 0) > 0 ||
-          u.staffAvailability?.updatedAt !== null,
+          u.moderation?.activeMute?.active === true &&
+          u.moderation?.activeMute?.expiresAt &&
+          new Date(u.moderation.activeMute.expiresAt).getTime() <= cutoff,
       )
-      .sort((a, b) => {
-        const compDiff =
-          (b.tradeStats?.asMiddlemanCompleted || 0) - (a.tradeStats?.asMiddlemanCompleted || 0);
-        if (compDiff !== 0) return compDiff;
-        return (
-          (a.tradeStats?.activeMiddlemanLoad || 0) - (b.tradeStats?.activeMiddlemanLoad || 0)
-        );
-      })
       .slice(0, limit)
       .map(deepCloneRecord);
+  }
+
+  async getCommunityStats() {
+    this.db.checkHealthy();
+    const users = Object.values(this.db.store.users);
+    let verifiedCount = 0;
+    let totalMessages = 0;
+    let totalRpPosts = 0;
+    let totalCharacters = 0;
+
+    for (const u of users) {
+      if (u.verification?.verified) verifiedCount += 1;
+      totalMessages += u.leveling?.messagesCount || 0;
+      totalRpPosts += u.leveling?.rpPostsCount || 0;
+      totalCharacters += Array.isArray(u.characters) ? u.characters.length : 0;
+    }
+
+    return {
+      trackedMembers: users.length,
+      verifiedCount,
+      totalMessages,
+      totalRpPosts,
+      totalCharacters,
+    };
+  }
+
+  async countVerified() {
+    const stats = await this.getCommunityStats();
+    return stats.verifiedCount;
+  }
+
+  async getLeaderboard(opts = {}) {
+    return this.listLeaderboard(opts);
   }
 }

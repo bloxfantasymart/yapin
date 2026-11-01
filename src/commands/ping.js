@@ -1,43 +1,31 @@
-import { EMBED_COLORS } from '../config/settings.js';
 import { EmbedBuilder } from '../api/messages.js';
+import { BOT_BRAND, EMBED_COLORS } from '../config/settings.js';
+import { pingDatabase } from '../database/connection.js';
 
 export const pingCommand = {
   name: 'ping',
-  description: 'Check Yapin API connectivity, event transport, and response latency',
-  category: 'general',
-  staffOnly: false,
-  requiredRole: null,
-  cooldownMs: 2000,
+  description: 'Check MM2 Helper Gateway status, uptime, and JSON database health.',
   usage: '/ping',
+  category: 'utility',
+  staffOnly: false,
 
-  /**
-   * Executes a verified `GET /me` round-trip to measure real Yapin REST latency
-   * and reports event cursor + transport state.
-   */
   async execute(ctx) {
-    const started = performance.now();
-    const { profile, latencyMs } = await ctx.client.getMe();
-    const totalMs = Math.max(1, Math.round(performance.now() - started));
+    const dbHealth = await pingDatabase();
+    const gwConnected = Boolean(ctx.client?.wsConnected || ctx.client?.connected);
+    const uptimeSec = Math.floor(process.uptime());
 
     const embed = new EmbedBuilder()
-      .setTitle('🏓 Pong — Yapin Middleman Bot Online')
-      .setColor(EMBED_COLORS.SUCCESS)
-      .addField('REST Latency', `${latencyMs} ms`, true)
-      .addField('Handler Time', `${totalMs} ms`, true)
-      .addField('Event Transport', ctx.client.transport || 'polling', true)
-      .addField('Bot Identity', `${profile.username || profile.bot?.name || 'bot'} (\`${profile.id || 'verified'}\`)`, true)
-      .addField('Last Event Cursor', String(ctx.client.lastEventId ?? 0), true)
-      .setFooter(`Correlation ID: ${ctx.correlationId}`)
-      .setTimestamp();
+      .setTitle(`📡 ${BOT_BRAND.botName} • System Telemetry`)
+      .setColor(dbHealth.healthy ? EMBED_COLORS.SUCCESS : EMBED_COLORS.WARNING)
+      .addField('Gateway Link', gwConnected ? '🟢 Live WebSocket' : '🟡 HTTPS Long-Poll', true)
+      .addField(
+        'JSON Storage',
+        dbHealth.healthy ? `🟢 Healthy (${dbHealth.latencyMs ?? 0}ms)` : '🔴 Degraded',
+        true,
+      )
+      .addField('Uptime', `${uptimeSec}s`, true)
+      .setFooter(BOT_BRAND.footer);
 
-    if (typeof ctx.reply === 'function') {
-      return ctx.reply({ embeds: [embed] });
-    }
-    return ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-      embeds: [embed],
-      replyTo: ctx.event.id,
-    });
+    await ctx.reply({ embeds: [embed] });
   },
 };
-
-export default pingCommand;

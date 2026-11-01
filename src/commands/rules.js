@@ -1,32 +1,24 @@
-import {
-  DEFAULT_COORDINATION_DISCLAIMER,
-  DEFAULT_TRADING_RULES,
-  EMBED_COLORS,
-} from '../config/settings.js';
 import { EmbedBuilder } from '../api/messages.js';
+import { BOT_BRAND, DEFAULT_SERVER_RULES, EMBED_COLORS } from '../config/settings.js';
 
 export const rulesCommand = {
   name: 'rules',
-  description: 'View server middleman trading rules and non-custody safety notice.',
+  description: 'Read the official MurderMystery2 Roleplay & Community Rules.',
   usage: '/rules',
   category: 'utility',
   staffOnly: false,
 
   async execute(ctx) {
-    const serverCfg = await ctx.repositories.serverConfig.getOrCreate(ctx.event.server_id);
-    const rules = serverCfg.rulesText || DEFAULT_TRADING_RULES;
-    const disclaimer = serverCfg.disclaimerText || DEFAULT_COORDINATION_DISCLAIMER;
+    const cfg = await ctx.repositories.serverConfigs.getOrCreate(ctx.event.server_id);
+    const rawRules = cfg.rulesText || DEFAULT_SERVER_RULES;
+    const text = Array.isArray(rawRules) ? rawRules.join('\n\n') : String(rawRules);
 
     const embed = new EmbedBuilder()
-      .setTitle('📜 Middleman Trading Rules & Safety Notice')
-      .setDescription(rules)
-      .setColor(EMBED_COLORS.INFO)
-      .addField('⚠️ Important Non-Custody Notice', disclaimer, false)
-      .setFooter('Both participants must explicitly agree to these rules (rules=yes) when creating or accepting a trade.');
+      .setTitle(`📜 ${BOT_BRAND.serverName} • Official Roleplay & Server Laws`)
+      .setColor(EMBED_COLORS.CRIMSON)
+      .setDescription(text)
+      .setFooter(BOT_BRAND.footer);
 
-    await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-      embeds: [embed],
-      replyTo: ctx.event.id,
-    });
+    await ctx.reply({ embeds: [embed] });
   },
 };

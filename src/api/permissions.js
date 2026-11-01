@@ -9,22 +9,22 @@ const normalizePermissionName = (name) =>
 export const STAFF_TIERS = Object.freeze({
   USER: 0,
   SUPPORT: 10,
-  MIDDLEMAN: 20,
+  TRIAL_MOD: 20,
   MODERATOR: 30,
   ADMIN: 40,
   OWNER: 50,
 });
 
 /**
- * Verified Yapin Permissions & Server-Side Identity Verifier.
- * Source: https://www.yapin.gg/developers#permissions & structures/Permissions.js
+ * Verified Yapin Permissions, Role Management & Server-Side Identity Verifier for **MM2 Helper**.
+ * Source: https://www.yapin.gg/developers#permissions
  *
  * Security invariants:
  * 1. NEVER trusts display names, usernames, nicknames, or message text claims.
  * 2. Resolves real server owner (`server.owner_id`), server roles (`GET /servers/:id/roles`),
  *    and member role assignments (`GET /servers/:id/members/:uid`) directly from Yapin's API.
- * 3. Evaluates both Yapin platform permissions (`manage_server`, `manage_messages`, `manage_channels`, etc.)
- *    and server-configured RBAC role IDs (`adminRoleIds`, `middlemanRoleIds`, `moderatorRoleIds`, `supportRoleIds`).
+ * 3. Supports verified Yapin role assignment (`PUT / DELETE /servers/:id/members/:uid/roles/:rid`)
+ *    for Verification, Level Ranks, RP Roles, Mutes, and Trial Mod promotions.
  */
 export class YapinPermissionsApi {
   /**
@@ -43,6 +43,10 @@ export class YapinPermissionsApi {
     this._serverCache.clear();
     this._rolesCache.clear();
     this._memberCache.clear();
+  }
+
+  invalidateMember(serverId, userId) {
+    this._memberCache.delete(`${serverId}:${userId}`);
   }
 
   async fetchServer(serverId, { forceRefresh = false } = {}) {
@@ -98,12 +102,33 @@ export class YapinPermissionsApi {
   }
 
   /**
-   * Computes a member's verified Yapin platform permissions and configured staff tier.
-   *
-   * @param {string} serverId
-   * @param {string} userId
-   * @param {object | null} [serverConfig]
-   * @param {{ forceRefresh?: boolean }} [options]
+   * Assigns a role to a member (`PUT /servers/:id/members/:uid/roles/:rid`).
+   */
+  async addMemberRole(serverId, userId, roleId) {
+    if (!roleId) return false;
+    await this.client.request(
+      'PUT',
+      `/servers/${encodeURIComponent(serverId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+    );
+    this.invalidateMember(serverId, userId);
+    return true;
+  }
+
+  /**
+   * Removes a role from a member (`DELETE /servers/:id/members/:uid/roles/:rid`).
+   */
+  async removeMemberRole(serverId, userId, roleId) {
+    if (!roleId) return false;
+    await this.client.request(
+      'DELETE',
+      `/servers/${encodeURIComponent(serverId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+    );
+    this.invalidateMember(serverId, userId);
+    return true;
+  }
+
+  /**
+   * Computes a member's verified Yapin platform permissions and configured MurderMystery2 staff tier.
    */
   async resolveMemberAccess(serverId, userId, serverConfig = null, options = {}) {
     const [server, allRoles, member] = await Promise.all([
@@ -125,8 +150,8 @@ export class YapinPermissionsApi {
         roles: {
           isOwner: false,
           isAdmin: false,
-          isMiddleman: false,
           isModerator: false,
+          isTrialMod: false,
           isSupport: false,
           isStaff: false,
         },
@@ -166,18 +191,21 @@ export class YapinPermissionsApi {
     const hasManageServer = platformPermissions.has(
       normalizePermissionName(YAPIN_PERMISSIONS.MANAGE_SERVER),
     );
+    const hasManageMessages = platformPermissions.has(
+      normalizePermissionName(YAPIN_PERMISSIONS.MANAGE_MESSAGES),
+    );
 
     const isAdmin = isOwner || hasManageServer || hasAnyRole(cfgStaff.adminRoleIds);
-    const isModerator = isAdmin || hasAnyRole(cfgStaff.moderatorRoleIds);
-    const isMiddleman = isAdmin || hasAnyRole(cfgStaff.middlemanRoleIds);
-    const isSupport = isModerator || isMiddleman || hasAnyRole(cfgStaff.supportRoleIds);
-    const isStaff = isAdmin || isModerator || isMiddleman || isSupport;
+    const isModerator = isAdmin || hasManageMessages || hasAnyRole(cfgStaff.moderatorRoleIds);
+    const isTrialMod = isModerator || hasAnyRole(cfgStaff.trialModRoleIds);
+    const isSupport = isTrialMod || hasAnyRole(cfgStaff.supportRoleIds);
+    const isStaff = isAdmin || isModerator || isTrialMod || isSupport;
 
     let tier = STAFF_TIERS.USER;
     if (isOwner) tier = STAFF_TIERS.OWNER;
     else if (isAdmin) tier = STAFF_TIERS.ADMIN;
     else if (isModerator) tier = STAFF_TIERS.MODERATOR;
-    else if (isMiddleman) tier = STAFF_TIERS.MIDDLEMAN;
+    else if (isTrialMod) tier = STAFF_TIERS.TRIAL_MOD;
     else if (isSupport) tier = STAFF_TIERS.SUPPORT;
 
     return {
@@ -190,8 +218,8 @@ export class YapinPermissionsApi {
       roles: {
         isOwner,
         isAdmin,
-        isMiddleman,
         isModerator,
+        isTrialMod,
         isSupport,
         isStaff,
       },
@@ -200,14 +228,13 @@ export class YapinPermissionsApi {
   }
 
   /**
-   * Asserts that a user satisfies a required staff role/tier on the server.
-   * Uses `forceRefresh: true` by default for privileged staff actions so revoked roles take effect immediately.
+   * Asserts that a user satisfies a required staff role/tier on MurderMystery2.
    *
    * @param {{
    *   serverId: string,
    *   userId: string,
    *   serverConfig?: object | null,
-   *   requiredRole: 'staff' | 'support' | 'middleman' | 'moderator' | 'admin' | 'owner',
+   *   requiredRole: 'staff' | 'support' | 'trialmod' | 'moderator' | 'admin' | 'owner',
    *   forceRefresh?: boolean,
    * }} check
    */
@@ -220,20 +247,20 @@ export class YapinPermissionsApi {
   }) {
     const access = await this.resolveMemberAccess(serverId, userId, serverConfig, { forceRefresh });
     if (!access.isMember) {
-      throw new AuthorizationError('User is not a verified member of this Yapin server.');
+      throw new AuthorizationError('User is not a verified member of MurderMystery2.');
     }
 
     const ok =
       (requiredRole === 'owner' && access.roles.isOwner) ||
       (requiredRole === 'admin' && access.roles.isAdmin) ||
-      (requiredRole === 'moderator' && (access.roles.isModerator || access.roles.isAdmin)) ||
-      (requiredRole === 'middleman' && (access.roles.isMiddleman || access.roles.isAdmin)) ||
+      (requiredRole === 'moderator' && access.roles.isModerator) ||
+      (requiredRole === 'trialmod' && access.roles.isTrialMod) ||
       (requiredRole === 'support' && access.roles.isSupport) ||
       (requiredRole === 'staff' && access.roles.isStaff);
 
     if (!ok) {
       throw new AuthorizationError(
-        `Insufficient server permissions. Required staff role: ${requiredRole}.`,
+        `Insufficient MurderMystery2 staff clearance. Required tier: ${requiredRole}.`,
         { userId, requiredRole },
       );
     }
@@ -241,9 +268,6 @@ export class YapinPermissionsApi {
     return access;
   }
 
-  /**
-   * Resolves the bot's own role IDs in a server so private channels always retain bot visibility.
-   */
   async getBotRoleIds(serverId) {
     const botId = this.client.me?.id || this.client.me?.bot?.id;
     if (!botId) return [];

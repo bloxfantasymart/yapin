@@ -4,7 +4,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUTPUT_ZIP = path.join(ROOT_DIR, 'yapin-middleman-bot.zip');
+const OUTPUT_ZIP = path.join(ROOT_DIR, 'mm2-helper-bot.zip');
 
 const EXCLUDED_DIRS = new Set([
   '.git',
@@ -25,7 +25,7 @@ const EXCLUDED_FILES = new Set([
   '.env',
   '.DS_Store',
   'Thumbs.db',
-  'yapin-middleman-bot.zip',
+  'mm2-helper-bot.zip',
 ]);
 
 // Standard IEEE 802.3 CRC-32 lookup table for PKZIP headers

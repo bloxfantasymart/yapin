@@ -1,3 +1,4 @@
+import { setActiveDatabase } from '../../src/database/connection.js';
 import { JsonDatabase } from '../../src/database/jsonStore.js';
 import { deepCloneRecord } from '../../src/database/models/schemaHelpers.js';
 import { createJsonRepositories } from '../../src/database/repositories/index.js';
@@ -9,6 +10,7 @@ import { createJsonRepositories } from '../../src/database/repositories/index.js
 export function createInMemoryRepositories(initialSnapshot = null) {
   const db = new JsonDatabase({ inMemory: true });
   db.initialized = true;
+  setActiveDatabase(db);
 
   if (initialSnapshot) {
     db.store = deepCloneRecord(initialSnapshot);

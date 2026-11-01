@@ -1,25 +1,26 @@
 import { fileURLToPath } from 'node:url';
-import { loadEnv } from './config/env.js';
-import { createLogger } from './utils/logger.js';
-import { sanitizeErrorMessage } from './utils/errors.js';
-import { connectDatabase, disconnectDatabase } from './database/connection.js';
-import { createJsonRepositories } from './database/repositories/index.js';
 import { YapinClient } from './api/YapinClient.js';
 import { YapinOAuth2Client } from './api/authentication.js';
+import { YapinChannelsApi } from './api/channels.js';
 import { YapinCommandsApi } from './api/commands.js';
 import { YapinMessagesApi } from './api/messages.js';
-import { YapinChannelsApi } from './api/channels.js';
 import { YapinPermissionsApi } from './api/permissions.js';
 import { createCommandRegistry } from './commands/index.js';
-import { createApplicationServices } from './middleman/createServices.js';
-import { CommandHandler } from './handlers/commandHandler.js';
-import { InteractionHandler } from './handlers/interactionHandler.js';
-import { registerEventHandlers } from './handlers/eventHandler.js';
+import { loadEnv } from './config/env.js';
+import { BOT_BRAND } from './config/settings.js';
 import { createDashboardServer } from './dashboard/server.js';
+import { connectDatabase, disconnectDatabase } from './database/connection.js';
+import { createJsonRepositories } from './database/repositories/index.js';
+import { CommandHandler } from './handlers/commandHandler.js';
+import { registerEventHandlers } from './handlers/eventHandler.js';
+import { InteractionHandler } from './handlers/interactionHandler.js';
+import { createApplicationServices } from './systems/createServices.js';
+import { sanitizeErrorMessage } from './utils/errors.js';
+import { createLogger } from './utils/logger.js';
 
 /**
- * Bootstraps and runs the production Yapin Middleman Bot with local atomic JSON storage,
- * background expiration sweeps, optional HMAC webhook receiver, and optional OAuth2 Staff Dashboard.
+ * Bootstraps and runs **MM2 Helper** for the **MurderMystery2** Roleplay Server on Yapin.gg,
+ * backed by crash-safe local atomic JSON storage (`./data/*.json`).
  */
 export async function startApplication(rawEnv = process.env, options = {}) {
   const env = loadEnv(rawEnv, { exitOnError: options.exitOnError ?? true });
@@ -27,6 +28,8 @@ export async function startApplication(rawEnv = process.env, options = {}) {
 
   logger.info(
     {
+      botName: BOT_BRAND.botName,
+      serverName: BOT_BRAND.serverName,
       nodeVersion: process.version,
       env: env.NODE_ENV,
       serverId: env.YAPIN_SERVER_ID,
@@ -34,7 +37,7 @@ export async function startApplication(rawEnv = process.env, options = {}) {
       gatewayEnabled: env.YAPIN_ENABLE_GATEWAY,
       dashboardEnabled: env.DASHBOARD_ENABLED,
     },
-    'Starting Yapin Middleman Bot...',
+    `Starting ${BOT_BRAND.botName} for ${BOT_BRAND.serverName}...`,
   );
 
   // 1. Initialize local crash-safe JSON storage & repositories
@@ -63,7 +66,7 @@ export async function startApplication(rawEnv = process.env, options = {}) {
   const channelsApi = new YapinChannelsApi(client);
   const permissionsApi = new YapinPermissionsApi(client);
 
-  // 3. Build Domain Services, Command Registry & Event Dispatchers
+  // 3. Build MM2 Helper Domain Services, Command Registry & Event Dispatchers
   const { services, cooldowns } = createApplicationServices({
     repositories,
     permissionsApi,
@@ -100,6 +103,7 @@ export async function startApplication(rawEnv = process.env, options = {}) {
     commandHandler,
     interactionHandler,
     permissionsApi,
+    services,
     operationalRepo: repositories.operational,
     logger,
   });
@@ -107,7 +111,7 @@ export async function startApplication(rawEnv = process.env, options = {}) {
   // 4. Sync slash commands & start real-time Gateway / Long-Polling ingestion
   await commandsApi.syncCommands(commandRegistry.toYapinDefinitions());
   await client.start();
-  await client.setStatus('online', '/middleman • Safe Trade Coordination').catch(() => undefined);
+  await client.setStatus('online', BOT_BRAND.statusText).catch(() => undefined);
 
   // 5. Optional Event Webhook Server
   if (env.YAPIN_WEBHOOK_ENABLED) {
@@ -122,7 +126,7 @@ export async function startApplication(rawEnv = process.env, options = {}) {
     );
   }
 
-  // 6. Optional OAuth2 Staff Web Dashboard
+  // 6. Optional OAuth2 Staff Web Console ("Sheriff HQ")
   let dashboard = null;
   if (env.DASHBOARD_ENABLED) {
     const oauthClient = new YapinOAuth2Client({
@@ -146,19 +150,19 @@ export async function startApplication(rawEnv = process.env, options = {}) {
     const boundPort = await dashboard.listen(env.DASHBOARD_PORT, env.DASHBOARD_HOST);
     logger.info(
       { host: env.DASHBOARD_HOST, port: boundPort },
-      'Staff OAuth2 Web Dashboard listening',
+      `${BOT_BRAND.botName} Sheriff HQ OAuth2 Web Console listening`,
     );
   }
 
-  // 7. Periodic Explicit Stale-Trade Expiration Sweep (every 5 minutes; audited transitions!)
+  // 7. Periodic Expired Timed-Mute Sweep (every 60 seconds; audited automatic unmutes)
   const sweepInterval = setInterval(() => {
-    services.trade.expireStaleTrades({ limit: 50 }).catch((err) => {
+    services.moderation.sweepExpiredMutes(env.YAPIN_SERVER_ID).catch((err) => {
       logger.warn(
         { errMessage: sanitizeErrorMessage(err?.message || String(err)) },
-        'Background stale-trade expiration sweep warning',
+        'Background expired-mute sweep warning',
       );
     });
-  }, 5 * 60_000);
+  }, 60_000);
   if (sweepInterval.unref) sweepInterval.unref();
 
   // 8. Graceful Shutdown Handler
@@ -178,7 +182,7 @@ export async function startApplication(rawEnv = process.env, options = {}) {
           .catch(() => undefined);
       }
       await disconnectDatabase({ logger });
-      logger.info('Yapin Middleman Bot stopped cleanly.');
+      logger.info(`${BOT_BRAND.botName} stopped cleanly.`);
     } catch (err) {
       logger.error(
         { errMessage: sanitizeErrorMessage(err?.message || String(err)) },
@@ -206,7 +210,9 @@ const isMainModule =
 
 if (isMainModule) {
   startApplication().catch((err) => {
-    process.stderr.write(`[FATAL] Startup failed: ${sanitizeErrorMessage(err?.message || String(err))}\n`);
+    process.stderr.write(
+      `[FATAL] Startup failed: ${sanitizeErrorMessage(err?.message || String(err))}\n`,
+    );
     process.exit(1);
   });
 }

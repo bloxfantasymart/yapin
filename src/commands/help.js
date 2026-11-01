@@ -1,66 +1,65 @@
-import { EMBED_COLORS } from '../config/settings.js';
 import { EmbedBuilder } from '../api/messages.js';
+import { BOT_BRAND, EMBED_COLORS } from '../config/settings.js';
 
 export const helpCommand = {
   name: 'help',
-  description: 'List Middleman Bot commands and detailed usage guides.',
-  usage: '/help [command-name]',
+  description: 'View all MM2 Helper community, roleplay, ticket, and staff commands.',
+  usage: '/help',
   category: 'utility',
   staffOnly: false,
 
   async execute(ctx) {
-    const query = (ctx.event.args || '').trim().replace(/^\//, '').toLowerCase();
-    const allCommands = ctx.commandRegistry?.getAll() || [];
-
-    if (query) {
-      const target = allCommands.find((c) => c.name === query);
-      if (!target) {
-        await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-          content: `Unknown command \`/${query}\`. Run \`/help\` to see available commands.`,
-          replyTo: ctx.event.id,
-        });
-        return;
-      }
-
-      const embed = new EmbedBuilder()
-        .setTitle(`Command: /${target.name}`)
-        .setDescription(target.description)
-        .setColor(EMBED_COLORS.INFO)
-        .addField('Usage', `\`${target.usage || `/${target.name}`}\``, false)
-        .addField('Access', target.staffOnly ? `Staff (${target.requiredRole || 'middleman'})` : 'All server members', true);
-
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        embeds: [embed],
-        replyTo: ctx.event.id,
-      });
-      return;
-    }
-
-    const userCommands = allCommands.filter((c) => !c.staffOnly);
-    const staffCommands = allCommands.filter((c) => c.staffOnly);
+    const cfg = await ctx.repositories.serverConfigs.getOrCreate(ctx.event.server_id);
+    const access = await ctx.permissionsApi.resolveMemberAccess(
+      ctx.event.server_id,
+      ctx.event.author_id,
+      cfg,
+    );
 
     const embed = new EmbedBuilder()
-      .setTitle('Yapin Middleman Coordination Bot — Help')
+      .setTitle(`🔪 ${BOT_BRAND.botName} • ${BOT_BRAND.serverName} Command Manual`)
+      .setColor(EMBED_COLORS.CRIMSON)
       .setDescription(
-        'Safe, audited middleman trade coordination for Yapin.gg.\n' +
-          'Run `/help <command>` for detailed syntax or `/rules` before trading.',
+        `Welcome to **${BOT_BRAND.serverName}**! Below is your field guide to verification, leveling, tickets, Moderator applications, and MM2 Roleplay.`,
       )
-      .setColor(EMBED_COLORS.PRIMARY)
       .addField(
-        'Trader & General Commands',
-        userCommands.map((c) => `\`/${c.name}\` — ${c.description}`).join('\n').slice(0, 1020),
+        '🛡️ Verification & Info',
+        '`/verify` • `/rules` • `/serverinfo` • `/profile` • `/ping` • `/help`',
         false,
       )
       .addField(
-        'Middleman & Staff Commands',
-        staffCommands.map((c) => `\`/${c.name}\` — ${c.description}`).join('\n').slice(0, 1020),
+        '🏆 Ranks, XP & Daily Crates',
+        '`/rank` • `/leaderboard` • `/daily`',
         false,
       )
-      .setFooter('Note: Yapin slash commands accept key="value" arguments after the command name.');
+      .addField(
+        '🎭 MurderMystery2 Roleplay',
+        '`/character` (`create|list|switch|delete`) • `/rp` (`say|scene|clue|roll|maps`) • `/mystery` (`start|join|draw|end`) • `/roles`',
+        false,
+      )
+      .addField(
+        '🕵️ Support Tickets, Reports & Sheriff Academy',
+        '`/ticket` (`open|view|note|close`) • `/report` • `/apply`',
+        false,
+      );
 
-    await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-      embeds: [embed],
-      replyTo: ctx.event.id,
-    });
+    if (access.roles.isStaff) {
+      embed.addField(
+        '🔫 Sheriff & Moderator Enforcement',
+        '`/warn` • `/warnings` • `/clearwarn` • `/mute` • `/unmute` • `/kick` • `/ban` • `/unban` • `/case` • `/modlogs` • `/purge` • `/slowmode` • `/lock` • `/unlock` • `/verifyuser`',
+        false,
+      );
+    }
+
+    if (access.roles.isAdmin) {
+      embed.addField(
+        '👑 High Sheriff Administration',
+        '`/applications` • `/appreview` • `/xp` • `/panel` (`verify|tickets|applications|roles`) • `/config`',
+        false,
+      );
+    }
+
+    embed.setFooter(BOT_BRAND.footer);
+    await ctx.reply({ embeds: [embed] });
   },
 };

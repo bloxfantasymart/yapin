@@ -94,7 +94,7 @@ export function createLogger(options = {}) {
   const level = options.level || process.env.LOG_LEVEL || (process.env.NODE_ENV === 'test' ? 'silent' : 'info');
   return pino(
     {
-      name: options.name || 'yapin-middleman',
+      name: options.name || 'mm2-helper',
       level,
       redact: {
         paths: REDACT_PATHS,

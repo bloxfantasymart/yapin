@@ -1,25 +1,31 @@
-import { createReadyListener } from '../events/ready.js';
-import { createMessageCreateListener } from '../events/messageCreate.js';
 import { createInteractionCreateListener } from '../events/interactionCreate.js';
 import { createMemberUpdateListener } from '../events/memberUpdate.js';
+import { createMessageCreateListener } from '../events/messageCreate.js';
+import { createReadyListener } from '../events/ready.js';
 import { sanitizeErrorMessage } from '../utils/errors.js';
 
 /**
  * Wires YapinClient event stream (`ready`, `message`, `interaction`, `member_join`, `member_leave`, `rawEvent`)
- * to modular handlers and persists the monotonic event cursor for crash/restart recovery.
+ * to MM2 Helper handlers and persists the monotonic event cursor for crash/restart recovery.
  */
 export function registerEventHandlers({
   client,
   commandHandler,
   interactionHandler,
   permissionsApi,
+  services = null,
   operationalRepo,
   logger,
 }) {
+  const resolvedServices = services || commandHandler?.services || null;
   const onReady = createReadyListener({ logger });
-  const onMessage = createMessageCreateListener({ commandHandler });
+  const onMessage = createMessageCreateListener({ commandHandler, services: resolvedServices });
   const onInteraction = createInteractionCreateListener({ interactionHandler });
-  const onMemberEvent = createMemberUpdateListener({ permissionsApi, logger });
+  const onMemberEvent = createMemberUpdateListener({
+    permissionsApi,
+    services: resolvedServices,
+    logger,
+  });
 
   client.on('ready', (payload) => {
     Promise.resolve(onReady(payload)).catch((err) => {
@@ -29,13 +35,19 @@ export function registerEventHandlers({
 
   client.on('message', (data) => {
     Promise.resolve(onMessage(data)).catch((err) => {
-      logger.error({ errMessage: sanitizeErrorMessage(err.message) }, 'Unhandled message listener error');
+      logger.error(
+        { errMessage: sanitizeErrorMessage(err.message) },
+        'Unhandled message listener error',
+      );
     });
   });
 
   client.on('interaction', (data) => {
     Promise.resolve(onInteraction(data)).catch((err) => {
-      logger.error({ errMessage: sanitizeErrorMessage(err.message) }, 'Unhandled interaction listener error');
+      logger.error(
+        { errMessage: sanitizeErrorMessage(err.message) },
+        'Unhandled interaction listener error',
+      );
     });
   });
 

@@ -3,7 +3,7 @@ import { ConflictError } from '../utils/errors.js';
 
 /**
  * Provides replay protection and idempotent execution for sensitive state-mutating operations
- * (trade creation, deposit verification, dispute resolution, final trade completion).
+ * (verification, moderator application decisions, ticket archival, and moderation case creation).
  */
 export class IdempotencyGuard {
   /**

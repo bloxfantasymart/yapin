@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'yapin-middleman-bot',
+      name: 'mm2-helper-bot',
       script: 'src/index.js',
       instances: 1, // Keep 1 instance per bot token (Yapin Gateway allows max 2 sockets/bot)
       exec_mode: 'fork',

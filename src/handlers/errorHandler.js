@@ -6,15 +6,12 @@ import {
 } from '../utils/errors.js';
 import { logger as rootLogger } from '../utils/logger.js';
 
-/**
- * Maps internal/domain errors into safe, non-leaking user-facing text while logging structured context.
- */
 export function formatUserSafeError(error, correlationId) {
   if (error instanceof AppError && error.expose !== false) {
     return `❌ ${sanitizeErrorMessage(error.message)} *(ref: \`${correlationId}\`)*`;
   }
   if (error instanceof DatabaseUnavailableError) {
-    return `⚠️ Database is temporarily unavailable. No trade changes were committed. Please retry shortly *(ref: \`${correlationId}\`)*.`;
+    return `⚠️ MM2 Helper JSON storage is temporarily busy. No changes were committed — please retry shortly *(ref: \`${correlationId}\`)*.`;
   }
   return `❌ An unexpected internal error occurred. No unsafe state change was applied *(ref: \`${correlationId}\`)*.`;
 }

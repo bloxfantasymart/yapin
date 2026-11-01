@@ -65,7 +65,7 @@ describe('Stage 1 — Yapin API Authentication, Rate Limits, Timeouts & Resilien
       enableGateway: false,
     });
     const { profile, latencyMs } = await okClient.getMe();
-    expect(profile.username).toBe('MiddlemanBot');
+    expect(profile.username).toBe('MM2Helper');
     expect(latencyMs).toBeGreaterThanOrEqual(0);
 
     const badClient = new YapinClient({
@@ -93,12 +93,12 @@ describe('Stage 1 — Yapin API Authentication, Rate Limits, Timeouts & Resilien
     mock.state.rateLimitNextCount = 1;
     mock.state.rateLimitRetryAfter = '0.01';
     const meAfter429 = await client.getMe();
-    expect(meAfter429.profile.username).toBe('MiddlemanBot');
+    expect(meAfter429.profile.username).toBe('MM2Helper');
     expect(rateLimitEvents).toHaveLength(1);
 
     mock.state.busyNextCount = 1;
     const meAfter503 = await client.getMe();
-    expect(meAfter503.profile.username).toBe('MiddlemanBot');
+    expect(meAfter503.profile.username).toBe('MM2Helper');
 
     // Non-retryable 429 (no Retry-After header or field)
     mock.state.rateLimitNextCount = 1;
@@ -122,7 +122,7 @@ describe('Stage 1 — Yapin API Authentication, Rate Limits, Timeouts & Resilien
       if (getAttempts < 2) {
         throw new Error('ECONNRESET');
       }
-      return new Response(JSON.stringify({ id: 'bot-1', username: 'MiddlemanBot' }), {
+      return new Response(JSON.stringify({ id: 'bot-1', username: 'MM2Helper' }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -144,7 +144,7 @@ describe('Stage 1 — Yapin API Authentication, Rate Limits, Timeouts & Resilien
 
     // GET IS idempotent and recovers on transient network reset
     const out = await client.getMe();
-    expect(out.profile.username).toBe('MiddlemanBot');
+    expect(out.profile.username).toBe('MM2Helper');
     expect(getAttempts).toBe(2);
   });
 

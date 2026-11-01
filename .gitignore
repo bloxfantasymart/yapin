@@ -33,7 +33,7 @@ dist/
 build/
 Unselected files/
 *.zip
-!yapin-middleman-bot.zip
+!mm2-helper-bot.zip
 
 # OS & Editor files
 .DS_Store

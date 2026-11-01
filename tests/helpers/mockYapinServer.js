@@ -8,12 +8,12 @@ export function createMockYapinFetch(overrides = {}) {
     botToken: overrides.botToken || 'yb_unit_test_secret_token_123456',
     botProfile: {
       id: '00000000-0000-4000-8000-000000000001',
-      username: 'MiddlemanBot',
-      display_name: 'Middleman Bot',
+      username: 'MM2Helper',
+      display_name: 'MM2 Helper',
       avatar_url: null,
       banner_url: null,
       bot: {
-        name: 'MiddlemanBot',
+        name: 'MM2 Helper',
         public: false,
         owner_id: '00000000-0000-4000-8000-000000000099',
       },
@@ -40,48 +40,72 @@ export function createMockYapinFetch(overrides = {}) {
   const ownerId = '00000000-0000-4000-8000-000000000099';
   state.servers.set(defaultServerId, {
     id: defaultServerId,
-    name: 'Yapin Trading Hub',
+    name: 'MurderMystery2',
     owner_id: ownerId,
-    member_count: 42,
-    online_count: 15,
+    member_count: 120,
+    online_count: 38,
   });
 
   state.roles.set(defaultServerId, [
     {
       id: 'role-admin',
-      name: 'Admin',
+      name: 'High Sheriff (Admin)',
       position: 50,
       manage_server: true,
       manage_messages: true,
       perms: { manage_roles: true, manage_channels: true, kick_members: true, ban_members: true },
     },
     {
-      id: 'role-mm',
-      name: 'Verified Middleman',
-      position: 40,
-      manage_server: false,
-      manage_messages: true,
-      perms: { manage_channels: true },
-    },
-    {
       id: 'role-mod',
-      name: 'Moderator',
+      name: 'Sheriff Moderator',
       position: 35,
       manage_server: false,
       manage_messages: true,
       perms: { timeout_members: true },
     },
     {
+      id: 'role-trialmod',
+      name: 'Trial Sheriff',
+      position: 28,
+      manage_server: false,
+      manage_messages: false,
+      perms: {},
+    },
+    {
       id: 'role-support',
-      name: 'Support',
+      name: 'Detective Support',
       position: 20,
       manage_server: false,
       manage_messages: false,
       perms: {},
     },
     {
+      id: 'role-verified',
+      name: 'Verified Citizen',
+      position: 10,
+      manage_server: false,
+      manage_messages: false,
+      perms: {},
+    },
+    {
+      id: 'role-unverified',
+      name: 'Unverified Suspect',
+      position: 5,
+      manage_server: false,
+      manage_messages: false,
+      perms: {},
+    },
+    {
+      id: 'role-muted',
+      name: 'Quarantined (Muted)',
+      position: 4,
+      manage_server: false,
+      manage_messages: false,
+      perms: {},
+    },
+    {
       id: 'role-bot',
-      name: 'MiddlemanBot',
+      name: 'MM2 Helper',
       position: 45,
       auto: true,
       manage_server: false,
@@ -102,7 +126,7 @@ export function createMockYapinFetch(overrides = {}) {
     });
   };
 
-  setMember(defaultServerId, state.botProfile.id, ['role-bot'], 'MiddlemanBot');
+  setMember(defaultServerId, state.botProfile.id, ['role-bot'], 'MM2Helper');
   setMember(defaultServerId, ownerId, ['role-admin'], 'ServerOwner');
 
   let idCounter = 1;
@@ -257,6 +281,24 @@ export function createMockYapinFetch(overrides = {}) {
       return jsonResponse(200, { member });
     }
 
+    // PUT / DELETE /servers/:id/members/:uid/roles/:rid
+    if (
+      (m = /^\/servers\/([^/]+)\/members\/([^/]+)\/roles\/([^/]+)$/.exec(route)) &&
+      (method === 'PUT' || method === 'DELETE')
+    ) {
+      const srvId = decodeURIComponent(m[1]);
+      const uid = decodeURIComponent(m[2]);
+      const rid = decodeURIComponent(m[3]);
+      const key = `${srvId}:${uid}`;
+      const member = state.members.get(key);
+      if (!member) return jsonResponse(404, { error: 'Member not found' });
+      const roleSet = new Set(member.roles || []);
+      if (method === 'PUT') roleSet.add(rid);
+      else roleSet.delete(rid);
+      member.roles = [...roleSet];
+      return jsonResponse(200, { ok: true, roles: member.roles });
+    }
+
     // GET /servers/:id/members
     if ((m = /^\/servers\/([^/]+)\/members$/.exec(route)) && method === 'GET') {
       const srvId = decodeURIComponent(m[1]);
@@ -351,6 +393,24 @@ export function createMockYapinFetch(overrides = {}) {
       if (parsedBody.embeds !== undefined) found.embeds = parsedBody.embeds;
       if (parsedBody.components !== undefined) found.components = parsedBody.components;
       return jsonResponse(200, { message: found });
+    }
+
+    // POST /channels/:id/messages/bulk-delete
+    if ((m = /^\/channels\/([^/]+)\/messages\/bulk-delete$/.exec(route)) && method === 'POST') {
+      const chId = decodeURIComponent(m[1]);
+      const ids = new Set(parsedBody?.message_ids || []);
+      const list = state.messages.get(chId) || [];
+      state.messages.set(chId, list.filter((msg) => !ids.has(msg.id)));
+      return jsonResponse(200, { deleted: ids.size });
+    }
+
+    // DELETE /channels/:id/messages/:mid
+    if ((m = /^\/channels\/([^/]+)\/messages\/([^/]+)$/.exec(route)) && method === 'DELETE') {
+      const chId = decodeURIComponent(m[1]);
+      const msgId = decodeURIComponent(m[2]);
+      const list = state.messages.get(chId) || [];
+      state.messages.set(chId, list.filter((msg) => msg.id !== msgId));
+      return jsonResponse(200, { deleted: true });
     }
 
     // GET /channels/:id/messages

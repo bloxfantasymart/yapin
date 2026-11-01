@@ -5,22 +5,22 @@ import { DatabaseUnavailableError, SecurityError } from '../utils/errors.js';
 import {
   AuditLogModel,
   DashboardSessionModel,
-  DisputeModel,
   EventCursorModel,
   IdempotencyRecordModel,
+  ModApplicationModel,
+  ModCaseModel,
   ReportModel,
   ServerConfigModel,
   TicketModel,
-  TradeModel,
   UserModel,
 } from './models/index.js';
 import { deepCloneRecord } from './models/schemaHelpers.js';
 
 const COLLECTION_FILES = Object.freeze({
   users: 'users.json',
-  trades: 'trades.json',
+  cases: 'cases.json',
+  applications: 'applications.json',
   tickets: 'tickets.json',
-  disputes: 'disputes.json',
   reports: 'reports.json',
   auditLogs: 'audit_logs.json',
   serverConfigs: 'server_configs.json',
@@ -60,20 +60,9 @@ export function getByDotPath(target, dotPath) {
 }
 
 /**
- * Crash-Safe, ACID-Transactional Atomic JSON Storage Engine.
- *
- * Design guarantees:
- * - Zero external database server required (persists human-readable `.json` files in `dataDir`).
- * - Atomic writes via temp-file (`*.tmp`) + `fsync` + atomic `rename` (with Windows 11 retry support)
- *   plus `.bak` backup copies so power loss or mid-write crashes never corrupt JSON files.
- * - Multi-collection ACID transactions via `AsyncLocalStorage` + snapshot rollback on failure.
- * - Per-document mutex (`withDocLock`) enforcing strict Compare-And-Swap (`version`) concurrency.
- * - Strict append-only protection on `audit_logs.json` (mutations/deletions throw `SecurityError`).
+ * Crash-Safe, ACID-Transactional Atomic JSON Storage Engine for **MM2 Helper**.
  */
 export class JsonDatabase {
-  /**
-   * @param {{ dataDir?: string | null, inMemory?: boolean, logger?: object }} [options]
-   */
   constructor(options = {}) {
     this.inMemory = Boolean(options.inMemory || !options.dataDir);
     this.dataDir = options.dataDir ? path.resolve(options.dataDir) : null;
@@ -92,9 +81,9 @@ export class JsonDatabase {
   _createEmptyState() {
     return {
       users: {},
-      trades: {},
+      cases: {},
+      applications: {},
       tickets: {},
-      disputes: {},
       reports: {},
       auditLogs: [],
       serverConfigs: {},
@@ -102,6 +91,7 @@ export class JsonDatabase {
         cursors: {},
         idempotency: {},
         sessions: {},
+        counters: {},
       },
     };
   }
@@ -120,9 +110,6 @@ export class JsonDatabase {
     this.simulateFailure = Boolean(flag);
   }
 
-  /**
-   * Acquires a serialized per-document lock for atomic read-modify-validate-write operations.
-   */
   async withDocLock(lockKey, fn) {
     const prev = this._docLocks.get(lockKey) || Promise.resolve();
     let release;
@@ -143,10 +130,6 @@ export class JsonDatabase {
     }
   }
 
-  /**
-   * Initializes `dataDir`, cleans up stale `.tmp` files, loads and validates all JSON collections,
-   * and writes initial empty JSON files if running for the first time.
-   */
   async init() {
     this.checkHealthy();
     if (this.inMemory) {
@@ -156,7 +139,6 @@ export class JsonDatabase {
 
     await fs.mkdir(this.dataDir, { recursive: true, mode: 0o700 });
 
-    // Remove leftover interrupted .tmp files from prior hard crashes
     const existingEntries = await fs.readdir(this.dataDir).catch(() => []);
     for (const name of existingEntries) {
       if (name.endsWith('.tmp')) {
@@ -178,7 +160,6 @@ export class JsonDatabase {
         await this._atomicWriteFile(filePath, defaultVal);
         return deepCloneRecord(defaultVal);
       }
-      // Attempt automatic recovery from `.bak` if primary JSON was truncated
       try {
         const bakRaw = await fs.readFile(bakPath, 'utf8');
         const recovered = JSON.parse(bakRaw);
@@ -201,7 +182,7 @@ export class JsonDatabase {
       const filePath = path.join(this.dataDir, COLLECTION_FILES[collectionKey]);
       const rawObj = await this._readJsonWithBackup(filePath, {});
       if (!rawObj || typeof rawObj !== 'object' || Array.isArray(rawObj)) {
-        throw new Error(`${ COLLECTION_FILES[collectionKey] } must contain a JSON object map.`);
+        throw new Error(`${COLLECTION_FILES[collectionKey]} must contain a JSON object map.`);
       }
       const out = {};
       for (const [id, doc] of Object.entries(rawObj)) {
@@ -212,13 +193,12 @@ export class JsonDatabase {
     };
 
     await loadMapCollection('users', UserModel);
-    await loadMapCollection('trades', TradeModel);
+    await loadMapCollection('cases', ModCaseModel);
+    await loadMapCollection('applications', ModApplicationModel);
     await loadMapCollection('tickets', TicketModel);
-    await loadMapCollection('disputes', DisputeModel);
     await loadMapCollection('reports', ReportModel);
     await loadMapCollection('serverConfigs', ServerConfigModel);
 
-    // Load append-only audit logs array
     const auditPath = path.join(this.dataDir, COLLECTION_FILES.auditLogs);
     const rawAudits = await this._readJsonWithBackup(auditPath, []);
     if (!Array.isArray(rawAudits)) {
@@ -226,12 +206,12 @@ export class JsonDatabase {
     }
     nextState.auditLogs = rawAudits.map((entry) => AuditLogModel.validate(entry));
 
-    // Load operational state (cursors, unexpired idempotency keys, unexpired sessions)
     const opPath = path.join(this.dataDir, COLLECTION_FILES.operational);
     const rawOp = await this._readJsonWithBackup(opPath, {
       cursors: {},
       idempotency: {},
       sessions: {},
+      counters: {},
     });
     const nowMs = Date.now();
 
@@ -248,6 +228,11 @@ export class JsonDatabase {
       const validated = DashboardSessionModel.validate(sess);
       if (validated.expiresAt.getTime() > nowMs) {
         nextState.operational.sessions[hash] = validated;
+      }
+    }
+    for (const [counterKey, num] of Object.entries(rawOp?.counters || {})) {
+      if (typeof num === 'number' && Number.isFinite(num)) {
+        nextState.operational.counters[counterKey] = num;
       }
     }
 
@@ -268,14 +253,12 @@ export class JsonDatabase {
       await handle.close();
     }
 
-    // Preserve previous known-good file as .bak when present
     try {
       await fs.copyFile(filePath, bakPath);
     } catch {
       // Ignore if filePath does not exist yet
     }
 
-    // Atomic rename with brief retry for Windows 11 file-scanner / Defender transient locks
     let lastErr = null;
     for (let attempt = 1; attempt <= 4; attempt++) {
       try {
@@ -308,9 +291,6 @@ export class JsonDatabase {
     }
   }
 
-  /**
-   * Marks a collection dirty inside an active transaction or flushes it immediately to disk.
-   */
   async markModified(collectionName) {
     this.checkHealthy();
     const activeTx = this._txContext.getStore();
@@ -338,7 +318,6 @@ export class JsonDatabase {
       await this._atomicWriteFile(filePath, snapshot);
     });
 
-    // Keep queue alive even if one write fails, while surfacing the error to the caller
     this._writeQueues.set(
       collectionName,
       next.catch(() => undefined),
@@ -346,16 +325,9 @@ export class JsonDatabase {
     return next;
   }
 
-  /**
-   * Runs `work(txSession)` with ACID multi-collection atomicity:
-   * - Buffers disk writes across `users`, `trades`, `tickets`, `disputes`, `reports`, `auditLogs`, etc.
-   * - Rolls back all in-memory mutations if `work` throws an error!
-   * - Flushes all touched `.json` files atomically on commit.
-   */
   async withTransaction(work) {
     this.checkHealthy();
 
-    // Re-entrant nested transaction support
     const parentTx = this._txContext.getStore();
     if (parentTx) {
       return work(parentTx);
@@ -371,11 +343,11 @@ export class JsonDatabase {
     await prevTx;
     const preSnapshot = {
       users: deepCloneRecord(this.store.users),
-      trades: deepCloneRecord(this.store.trades),
+      cases: deepCloneRecord(this.store.cases),
+      applications: deepCloneRecord(this.store.applications),
       tickets: deepCloneRecord(this.store.tickets),
-      disputes: deepCloneRecord(this.store.disputes),
       reports: deepCloneRecord(this.store.reports),
-      auditLogs: [...this.store.auditLogs], // individual entries are already frozen!
+      auditLogs: [...this.store.auditLogs],
       serverConfigs: deepCloneRecord(this.store.serverConfigs),
       operational: deepCloneRecord(this.store.operational),
     };
@@ -384,13 +356,10 @@ export class JsonDatabase {
     try {
       const result = await this._txContext.run(txState, () => work(txState));
       if (!this.inMemory && txState.dirtyCollections.size > 0) {
-        await Promise.all(
-          [...txState.dirtyCollections].map((col) => this._enqueueFlush(col)),
-        );
+        await Promise.all([...txState.dirtyCollections].map((col) => this._enqueueFlush(col)));
       }
       return result;
     } catch (err) {
-      // Full ACID rollback to pre-transaction snapshot
       this.store = preSnapshot;
       throw err;
     } finally {
@@ -398,9 +367,6 @@ export class JsonDatabase {
     }
   }
 
-  /**
-   * Flushes all pending queued writes cleanly during shutdown.
-   */
   async flushAll() {
     await Promise.all([...this._writeQueues.values()]);
   }

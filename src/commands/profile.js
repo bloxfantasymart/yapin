@@ -1,14 +1,15 @@
-import { EMBED_COLORS } from '../config/settings.js';
 import { EmbedBuilder } from '../api/messages.js';
-import { ValidationError } from '../utils/errors.js';
+import { BOT_BRAND, EMBED_COLORS } from '../config/settings.js';
+import { xpRequiredForLevel } from '../systems/levelingService.js';
 import { parseCommandArgs } from '../utils/argParser.js';
-import { extractYapinUserId } from '../utils/ids.js';
+import { ValidationError } from '../utils/errors.js';
+import { extractYapinUserId, userMention } from '../utils/ids.js';
 
 export const profileCommand = {
   name: 'profile',
-  description: 'View verified trade statistics and standing for yourself or another user.',
-  usage: '/profile [user=<@id>]',
-  category: 'utility',
+  description: 'View a MurderMystery2 Citizen & Roleplay Dossier.',
+  usage: '/profile [@user]',
+  category: 'leveling',
   staffOnly: false,
 
   async execute(ctx) {
@@ -28,38 +29,54 @@ export const profileCommand = {
       serverCfg,
     );
 
-    const stats = userDoc.tradeStats || {};
-    const susp = userDoc.suspension || {};
-    const isCurrentlySuspended =
-      Boolean(susp.active) && (!susp.expiresAt || new Date(susp.expiresAt) > new Date());
+    const lvl = userDoc.leveling || {};
+    const needed = xpRequiredForLevel(lvl.level || 1);
+    const activeChar =
+      (userDoc.characters || []).find((c) => c.characterId === userDoc.activeCharacterId) ||
+      userDoc.characters?.[0] ||
+      null;
 
     const embed = new EmbedBuilder()
-      .setTitle('👤 Trader & Middleman Profile')
-      .setDescription(`**Yapin UUID:** \`${targetId}\` (<@${targetId}>)`)
-      .setColor(isCurrentlySuspended ? EMBED_COLORS.DANGER : EMBED_COLORS.PRIMARY)
-      .addField('Completed Trades', String(stats.completed || 0), true)
-      .addField('Cancelled Trades', String(stats.cancelled || 0), true)
-      .addField('Middleman Handled', String(stats.asMiddlemanCompleted || 0), true)
+      .setTitle('🕵️ MurderMystery2 Citizen Dossier')
+      .setDescription(`**Citizen:** ${userMention(targetId)} (\`${targetId}\`)`)
+      .setColor(userDoc.moderation?.activeBan?.active ? EMBED_COLORS.DANGER : EMBED_COLORS.SHERIFF)
+      .addField('MM2 Rank', `${lvl.rankTitle || '🔪 New Suspect'} (Lv. **${lvl.level || 1}**)`, true)
+      .addField('XP Progress', `${lvl.xp || 0} / ${needed} XP (Total: ${lvl.totalXp || 0})`, true)
       .addField(
-        'Trade Standing',
-        isCurrentlySuspended ? '⛔ Suspended from new trades' : '✅ Permitted to trade',
+        'Checkpoint Status',
+        userDoc.verification?.verified ? '✅ Verified Citizen' : '⏳ Unverified',
         true,
+      )
+      .addField(
+        'Active RP Persona',
+        activeChar
+          ? `**${activeChar.name}** (\`${activeChar.alignment}\` • 🗡️ ${activeChar.weapon})`
+          : '_None registered (`/character create`)_',
+        false,
+      )
+      .addField(
+        'Earned Badges',
+        lvl.badges?.length ? lvl.badges.join(' • ') : '_No badges unlocked yet_',
+        false,
       );
 
     if (access.roles.isStaff || targetId === ctx.event.author_id) {
-      embed.addField('Recorded Warnings', String(userDoc.warnings?.length || 0), true);
+      embed.addField(
+        'Active Warnings',
+        String(userDoc.moderation?.activeWarnCount || 0),
+        true,
+      );
     }
     if (access.roles.isStaff) {
+      embed.addField('Total Case Files', String(userDoc.moderation?.totalCases || 0), true);
       embed.addField(
-        'Staff Review Queue Reports (Unverified)',
-        String(userDoc.riskFlags?.openReportsCount || 0),
+        'Queued Reports',
+        String(userDoc.moderation?.openReportsCount || 0),
         true,
       );
     }
 
-    await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-      embeds: [embed],
-      replyTo: ctx.event.id,
-    });
+    embed.setFooter(BOT_BRAND.footer);
+    await ctx.reply({ embeds: [embed] });
   },
 };

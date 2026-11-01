@@ -1,232 +1,666 @@
-import { randomUUID } from 'node:crypto';
+import { withTransaction } from '../database/connection.js';
 import { REPORT_CATEGORIES } from '../database/models/Report.js';
-import { ValidationError } from '../utils/errors.js';
-import { generateReportId, isValidYapinId } from '../utils/ids.js';
 import { sanitizeUserText, validateSafeEvidenceUrl } from '../security/sanitizer.js';
+import { buildModCaseEmbed } from '../utils/embeds.js';
+import { AuthorizationError, NotFoundError, ValidationError } from '../utils/errors.js';
+import { generateCaseId, generateReportId } from '../utils/ids.js';
 
 /**
- * Moderation & Suspicious-Behavior Report Service.
- *
- * Security Invariants (Requirement 6 & 8):
- * - `/warnuser`, `/suspenduser`, `/unsuspenduser` require server-side Moderator/Admin permissions.
- * - `/report` NEVER automatically labels or suspends a target user as a "scammer" based on an
- *   unverified report; it queues `PENDING_REVIEW` for staff investigation and increments `openReportsCount`.
+ * MurderMystery2 Sheriff Enforcement & Case File Service.
+ * Supports Warn, ClearWarn, Mute (with timed auto-unmute), Unmute, Kick, Ban, Unban, Purge,
+ * Channel Lock/Unlock, Slowmode, and non-auto-labeling Player Rulebreak Reports.
  */
 export class ModerationService {
-  /**
-   * @param {{
-   *   userRepo: import('../database/repositories/userRepository.js').MongooseUserRepository,
-   *   reportRepo: import('../database/repositories/ticketDisputeRepository.js').MongooseReportRepository,
-   *   serverConfigRepo: import('../database/repositories/auditConfigRepository.js').MongooseServerConfigRepository,
-   *   permissionsApi: import('../api/permissions.js').YapinPermissionsApi,
-   *   antiScam: import('../security/antiScam.js').AntiScamService,
-   *   auditService: import('../middleman/auditService.js').AuditService,
-   * }} deps
-   */
   constructor({
     userRepo,
+    caseRepo,
     reportRepo,
     serverConfigRepo,
     permissionsApi,
-    antiScam,
-    auditService,
+    channelsApi = null,
+    messagesApi = null,
+    logService,
+    logger = null,
   }) {
     this.userRepo = userRepo;
+    this.caseRepo = caseRepo;
     this.reportRepo = reportRepo;
     this.serverConfigRepo = serverConfigRepo;
     this.permissionsApi = permissionsApi;
-    this.antiScam = antiScam;
-    this.auditService = auditService;
+    this.channelsApi = channelsApi;
+    this.messagesApi = messagesApi;
+    this.logService = logService;
+    this.logger = logger;
   }
 
-  async warnUser({ serverId, targetUserId, actorId, reason, tradeId = null, correlationId }) {
-    if (!isValidYapinId(targetUserId)) {
-      throw new ValidationError('Invalid target Yapin user ID.');
+  async _assertStaffHierarchy(serverId, actorId, targetUserId, cfg, requiredRole = 'moderator') {
+    if (actorId === targetUserId) {
+      throw new ValidationError('Staff cannot issue moderation Case Files against themselves.');
     }
-    const cleanReason = sanitizeUserText(reason || '', {
-      maxLength: 1000,
-      fieldName: 'Warning reason',
+    const actorAccess = await this.permissionsApi.assertAuthorized({
+      serverId,
+      userId: actorId,
+      serverConfig: cfg,
+      requiredRole,
     });
+    const targetAccess = await this.permissionsApi.resolveMemberAccess(serverId, targetUserId, cfg);
+    if (targetAccess.isMember && targetAccess.tier >= actorAccess.tier && !actorAccess.roles.isOwner) {
+      throw new AuthorizationError(
+        'Cannot moderate a MurderMystery2 member of equal or higher staff rank.',
+      );
+    }
+    return { actorAccess, targetAccess };
+  }
+
+  /**
+   * Issues an official Warning Case File (`/warn`), auto-escalating to a Mute if threshold reached.
+   */
+  async warnUser({
+    serverId,
+    actorId,
+    targetUserId,
+    reason,
+    isAutoMod = false,
+    correlationId = null,
+  }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    if (!isAutoMod) {
+      await this._assertStaffHierarchy(serverId, actorId, targetUserId, cfg, 'trialmod');
+    }
+
+    const cleanReason = sanitizeUserText(reason || '', { maxLength: 1000, fieldName: 'Warning reason' });
     if (cleanReason.length < 3) {
       throw new ValidationError('Warning reason must be at least 3 characters.');
     }
 
-    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
-    await this.permissionsApi.assertAuthorized({
-      serverId,
-      userId: actorId,
-      serverConfig: cfg,
-      requiredRole: 'moderator',
+    const caseNumber = await this.caseRepo.nextCaseNumber(serverId);
+    const caseId = generateCaseId();
+
+    const { modCase, user } = await withTransaction(async () => {
+      const createdCase = await this.caseRepo.create({
+        caseId,
+        caseNumber,
+        serverId,
+        action: isAutoMod ? 'AUTOMOD_WARN' : 'WARN',
+        targetUserId,
+        moderatorId: actorId,
+        reason: cleanReason,
+        active: true,
+      });
+
+      const updatedUser = await this.userRepo.updateUser(targetUserId, (draft) => {
+        draft.moderation.activeWarnCount = (draft.moderation.activeWarnCount || 0) + 1;
+        draft.moderation.totalCases = (draft.moderation.totalCases || 0) + 1;
+      });
+
+      await this.logService.record({
+        serverId,
+        actorId,
+        actorType: isAutoMod ? 'SYSTEM' : 'STAFF',
+        action: createdCase.action,
+        targetType: 'CASE',
+        targetId: createdCase.caseId,
+        afterState: { targetUserId, activeWarnCount: updatedUser.moderation.activeWarnCount },
+        metadata: { reason: cleanReason },
+        correlationId,
+        stream: 'mod',
+        embed: buildModCaseEmbed(createdCase),
+      });
+
+      return { modCase: createdCase, user: updatedUser };
     });
 
-    const warning = {
-      warningId: `warn_${randomUUID().slice(0, 8)}`,
-      serverId,
-      issuedBy: actorId,
-      reason: cleanReason,
-      tradeId,
-      createdAt: new Date(),
-    };
-
-    const updatedUser = await this.userRepo.addWarning(targetUserId, warning);
-
-    await this.auditService.record({
-      serverId,
-      actorId,
-      actorType: 'STAFF',
-      action: 'USER_WARNED',
-      targetType: 'USER',
-      targetId: targetUserId,
-      afterState: { warningId: warning.warningId, totalWarnings: updatedUser.warnings.length },
-      metadata: { reason: cleanReason, tradeId },
-      correlationId,
-    });
-
-    return { user: updatedUser, warning };
-  }
-
-  async suspendUser({
-    serverId,
-    targetUserId,
-    actorId,
-    reason,
-    durationHours = null,
-    confirm = false,
-    correlationId,
-  }) {
-    if (!confirm) {
-      throw new ValidationError(
-        'Suspending a user from trades requires explicit confirmation (`confirm=yes`).',
-      );
-    }
-    if (!isValidYapinId(targetUserId)) {
-      throw new ValidationError('Invalid target Yapin user ID.');
-    }
-    if (targetUserId === actorId) {
-      throw new ValidationError('You cannot suspend yourself.');
-    }
-
-    const cleanReason = sanitizeUserText(reason || '', {
-      maxLength: 1000,
-      fieldName: 'Suspension reason',
-    });
-    if (cleanReason.length < 5) {
-      throw new ValidationError('Suspension requires a documented reason of at least 5 characters.');
+    // Automatic escalation if active warnings reach configured threshold
+    let autoMuteCase = null;
+    const threshold = cfg.autoMod.autoWarnThreshold || 3;
+    if (
+      user.moderation.activeWarnCount >= threshold &&
+      !user.moderation.activeMute?.active
+    ) {
+      autoMuteCase = await this.muteUser({
+        serverId,
+        actorId: 'SYSTEM_AUTOMOD',
+        targetUserId,
+        durationMs: cfg.autoMod.autoMuteDurationMs || 30 * 60_000,
+        reason: `Automatic Sheriff escalation (${user.moderation.activeWarnCount} active warnings)`,
+        isAutoMod: true,
+        correlationId,
+      }).catch(() => null);
     }
 
-    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
-    await this.permissionsApi.assertAuthorized({
-      serverId,
-      userId: actorId,
-      serverConfig: cfg,
-      requiredRole: 'moderator',
-    });
-
-    // Prevent moderators from suspending the server owner or admins
-    const targetAccess = await this.permissionsApi.resolveMemberAccess(serverId, targetUserId, cfg);
-    if (targetAccess.roles.isAdmin || targetAccess.roles.isOwner) {
-      throw new ValidationError('Cannot suspend a server Owner or Admin.');
-    }
-
-    let expiresAt = null;
-    if (durationHours !== null && durationHours !== undefined && durationHours !== '') {
-      const hours = Number(durationHours);
-      if (!Number.isFinite(hours) || hours <= 0 || hours > 8760) {
-        throw new ValidationError('Suspension durationHours must be between 1 and 8760 hours.');
-      }
-      expiresAt = new Date(Date.now() + hours * 3600 * 1000);
-    }
-
-    const updatedUser = await this.userRepo.suspendUser(targetUserId, {
-      reason: cleanReason,
-      suspendedBy: actorId,
-      expiresAt,
-    });
-
-    await this.auditService.record({
-      serverId,
-      actorId,
-      actorType: 'STAFF',
-      action: 'USER_SUSPENDED',
-      targetType: 'USER',
-      targetId: targetUserId,
-      afterState: { active: true, reason: cleanReason, expiresAt },
-      correlationId,
-    });
-
-    return updatedUser;
-  }
-
-  async unsuspendUser({ serverId, targetUserId, actorId, reason = 'Suspension lifted', correlationId }) {
-    if (!isValidYapinId(targetUserId)) {
-      throw new ValidationError('Invalid target Yapin user ID.');
-    }
-
-    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
-    await this.permissionsApi.assertAuthorized({
-      serverId,
-      userId: actorId,
-      serverConfig: cfg,
-      requiredRole: 'moderator',
-    });
-
-    const cleanReason = sanitizeUserText(reason, { maxLength: 500, fieldName: 'Unsuspend reason' });
-    const updatedUser = await this.userRepo.unsuspendUser(targetUserId, { liftedBy: actorId });
-
-    await this.auditService.record({
-      serverId,
-      actorId,
-      actorType: 'STAFF',
-      action: 'USER_UNSUSPENDED',
-      targetType: 'USER',
-      targetId: targetUserId,
-      afterState: { active: false, liftedBy: actorId },
-      metadata: { reason: cleanReason },
-      correlationId,
-    });
-
-    return updatedUser;
+    return { modCase, user, autoMuteCase };
   }
 
   /**
-   * Submits a suspicious-behavior report (`/report`) for staff review.
-   * Never auto-bans, auto-suspends, or labels the reported user a scammer!
+   * Voids / pardons an active Warning Case File (`/clearwarn`).
+   */
+  async clearWarning({ serverId, actorId, caseId, reason, correlationId = null }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    await this.permissionsApi.assertAuthorized({
+      serverId,
+      userId: actorId,
+      serverConfig: cfg,
+      requiredRole: 'moderator',
+    });
+
+    const found = await this.caseRepo.findByCaseId(caseId);
+    if (!found || found.serverId !== serverId) {
+      throw new NotFoundError(`Case \`${caseId}\` was not found.`);
+    }
+    if (!['WARN', 'AUTOMOD_WARN'].includes(found.action)) {
+      throw new ValidationError(`Case \`${found.caseId}\` is a \`${found.action}\`, not a warning.`);
+    }
+    if (!found.active) {
+      throw new ValidationError(`Case \`${found.caseId}\` has already been cleared.`);
+    }
+
+    const cleanReason = sanitizeUserText(reason || 'Warning cleared by Moderator', {
+      maxLength: 500,
+      fieldName: 'Clear reason',
+    });
+
+    return withTransaction(async () => {
+      const updatedCase = await this.caseRepo.updateCase(found.caseId, {
+        active: false,
+        voidedBy: actorId,
+        voidReason: cleanReason,
+        voidedAt: new Date(),
+      });
+
+      await this.userRepo.updateUser(found.targetUserId, (draft) => {
+        draft.moderation.activeWarnCount = Math.max(
+          0,
+          (draft.moderation.activeWarnCount || 1) - 1,
+        );
+      });
+
+      await this.logService.record({
+        serverId,
+        actorId,
+        actorType: 'STAFF',
+        action: 'WARNING_CLEARED',
+        targetType: 'CASE',
+        targetId: found.caseId,
+        metadata: { targetUserId: found.targetUserId, reason: cleanReason },
+        correlationId,
+        stream: 'mod',
+      });
+
+      return updatedCase;
+    });
+  }
+
+  /**
+   * Mutes a member (`/mute`), assigning `mutedRoleId` and scheduling timed expiry.
+   */
+  async muteUser({
+    serverId,
+    actorId,
+    targetUserId,
+    durationMs = 30 * 60_000,
+    reason,
+    isAutoMod = false,
+    correlationId = null,
+  }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    if (!isAutoMod) {
+      await this._assertStaffHierarchy(serverId, actorId, targetUserId, cfg, 'trialmod');
+    }
+
+    const cleanReason = sanitizeUserText(reason || 'Muted by MurderMystery2 Staff', {
+      maxLength: 1000,
+      fieldName: 'Mute reason',
+    });
+    const safeDuration = Math.max(60_000, Math.min(28 * 86_400_000, Number(durationMs) || 1_800_000));
+    const expiresAt = new Date(Date.now() + safeDuration);
+    const caseNumber = await this.caseRepo.nextCaseNumber(serverId);
+    const caseId = generateCaseId();
+
+    const modCase = await withTransaction(async () => {
+      const createdCase = await this.caseRepo.create({
+        caseId,
+        caseNumber,
+        serverId,
+        action: isAutoMod ? 'AUTOMOD_MUTE' : 'MUTE',
+        targetUserId,
+        moderatorId: actorId,
+        reason: cleanReason,
+        durationMs: safeDuration,
+        expiresAt,
+        active: true,
+      });
+
+      await this.userRepo.updateUser(targetUserId, (draft) => {
+        draft.moderation.totalCases = (draft.moderation.totalCases || 0) + 1;
+        draft.moderation.activeMute = {
+          active: true,
+          caseId: createdCase.caseId,
+          reason: cleanReason,
+          mutedBy: actorId,
+          mutedAt: new Date(),
+          expiresAt,
+        };
+      });
+
+      await this.logService.record({
+        serverId,
+        actorId,
+        actorType: isAutoMod ? 'SYSTEM' : 'STAFF',
+        action: createdCase.action,
+        targetType: 'CASE',
+        targetId: createdCase.caseId,
+        afterState: { targetUserId, expiresAt },
+        correlationId,
+        stream: 'mod',
+        embed: buildModCaseEmbed(createdCase),
+      });
+
+      return createdCase;
+    });
+
+    if (cfg.roles.mutedRoleId) {
+      await this.permissionsApi
+        .addMemberRole(serverId, targetUserId, cfg.roles.mutedRoleId)
+        .catch(() => undefined);
+    }
+
+    return modCase;
+  }
+
+  /**
+   * Lifts an active mute (`/unmute`).
+   */
+  async unmuteUser({
+    serverId,
+    actorId,
+    targetUserId,
+    reason = 'Mute lifted',
+    isSystemExpiry = false,
+    correlationId = null,
+  }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    if (!isSystemExpiry) {
+      await this.permissionsApi.assertAuthorized({
+        serverId,
+        userId: actorId,
+        serverConfig: cfg,
+        requiredRole: 'trialmod',
+      });
+    }
+
+    const cleanReason = sanitizeUserText(reason, { maxLength: 500, fieldName: 'Unmute reason' });
+    const caseNumber = await this.caseRepo.nextCaseNumber(serverId);
+    const caseId = generateCaseId();
+
+    const modCase = await withTransaction(async () => {
+      const createdCase = await this.caseRepo.create({
+        caseId,
+        caseNumber,
+        serverId,
+        action: 'UNMUTE',
+        targetUserId,
+        moderatorId: actorId,
+        reason: cleanReason,
+        active: false,
+      });
+
+      await this.userRepo.updateUser(targetUserId, (draft) => {
+        draft.moderation.activeMute.active = false;
+        draft.moderation.activeMute.expiresAt = null;
+      });
+
+      await this.logService.record({
+        serverId,
+        actorId,
+        actorType: isSystemExpiry ? 'SYSTEM' : 'STAFF',
+        action: 'UNMUTE',
+        targetType: 'CASE',
+        targetId: createdCase.caseId,
+        metadata: { targetUserId, reason: cleanReason },
+        correlationId,
+        stream: 'mod',
+        embed: buildModCaseEmbed(createdCase),
+      });
+
+      return createdCase;
+    });
+
+    if (cfg.roles.mutedRoleId) {
+      await this.permissionsApi
+        .removeMemberRole(serverId, targetUserId, cfg.roles.mutedRoleId)
+        .catch(() => undefined);
+    }
+
+    return modCase;
+  }
+
+  /**
+   * Periodic background sweep lifting expired timed mutes.
+   */
+  async sweepExpiredMutes(serverId, now = new Date()) {
+    const expiredUsers = await this.userRepo.listExpiredMutes(now, 50);
+    const unmutedIds = [];
+    for (const u of expiredUsers) {
+      await this.unmuteUser({
+        serverId,
+        actorId: 'SYSTEM_TIMER',
+        targetUserId: u.yapinUserId,
+        reason: 'Timed mute expired automatically',
+        isSystemExpiry: true,
+      }).catch(() => undefined);
+      unmutedIds.push(u.yapinUserId);
+    }
+    return unmutedIds;
+  }
+
+  /**
+   * Issues an official Kick Case File & revokes Verified Citizen access (`/kick`).
+   */
+  async kickUser({ serverId, actorId, targetUserId, reason, confirm = false, correlationId = null }) {
+    if (!confirm) {
+      throw new ValidationError('Kick requires explicit confirmation: pass `confirm=yes`.');
+    }
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    await this._assertStaffHierarchy(serverId, actorId, targetUserId, cfg, 'moderator');
+
+    const cleanReason = sanitizeUserText(reason || '', { maxLength: 1000, fieldName: 'Kick reason' });
+    if (cleanReason.length < 4) {
+      throw new ValidationError('Kick reason must be at least 4 characters.');
+    }
+
+    const caseNumber = await this.caseRepo.nextCaseNumber(serverId);
+    const modCase = await this.caseRepo.create({
+      caseId: generateCaseId(),
+      caseNumber,
+      serverId,
+      action: 'KICK',
+      targetUserId,
+      moderatorId: actorId,
+      reason: cleanReason,
+      active: true,
+    });
+
+    await this.userRepo.updateUser(targetUserId, (draft) => {
+      draft.verification.verified = false;
+      draft.moderation.totalCases = (draft.moderation.totalCases || 0) + 1;
+    });
+
+    if (cfg.roles.verifiedRoleId) {
+      await this.permissionsApi
+        .removeMemberRole(serverId, targetUserId, cfg.roles.verifiedRoleId)
+        .catch(() => undefined);
+    }
+
+    await this.logService.record({
+      serverId,
+      actorId,
+      actorType: 'STAFF',
+      action: 'KICK',
+      targetType: 'CASE',
+      targetId: modCase.caseId,
+      metadata: { targetUserId, reason: cleanReason },
+      correlationId,
+      stream: 'mod',
+      embed: buildModCaseEmbed(modCase),
+    });
+
+    return modCase;
+  }
+
+  /**
+   * Bans a member from MurderMystery2 systems (`/ban`).
+   */
+  async banUser({
+    serverId,
+    actorId,
+    targetUserId,
+    reason,
+    durationMs = null,
+    confirm = false,
+    correlationId = null,
+  }) {
+    if (!confirm) {
+      throw new ValidationError('Ban is high-impact: pass `confirm=yes` with a documented reason.');
+    }
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    await this._assertStaffHierarchy(serverId, actorId, targetUserId, cfg, 'moderator');
+
+    const cleanReason = sanitizeUserText(reason || '', { maxLength: 1000, fieldName: 'Ban reason' });
+    if (cleanReason.length < 4) {
+      throw new ValidationError('Ban reason must be at least 4 characters.');
+    }
+
+    const expiresAt = durationMs ? new Date(Date.now() + durationMs) : null;
+    const caseNumber = await this.caseRepo.nextCaseNumber(serverId);
+    const modCase = await this.caseRepo.create({
+      caseId: generateCaseId(),
+      caseNumber,
+      serverId,
+      action: 'BAN',
+      targetUserId,
+      moderatorId: actorId,
+      reason: cleanReason,
+      durationMs,
+      expiresAt,
+      active: true,
+    });
+
+    await this.userRepo.updateUser(targetUserId, (draft) => {
+      draft.verification.verified = false;
+      draft.moderation.totalCases = (draft.moderation.totalCases || 0) + 1;
+      draft.moderation.activeBan = {
+        active: true,
+        caseId: modCase.caseId,
+        reason: cleanReason,
+        bannedBy: actorId,
+        bannedAt: new Date(),
+        expiresAt,
+      };
+    });
+
+    if (cfg.roles.verifiedRoleId) {
+      await this.permissionsApi
+        .removeMemberRole(serverId, targetUserId, cfg.roles.verifiedRoleId)
+        .catch(() => undefined);
+    }
+    if (cfg.roles.mutedRoleId) {
+      await this.permissionsApi
+        .addMemberRole(serverId, targetUserId, cfg.roles.mutedRoleId)
+        .catch(() => undefined);
+    }
+
+    await this.logService.record({
+      serverId,
+      actorId,
+      actorType: 'STAFF',
+      action: 'BAN',
+      targetType: 'CASE',
+      targetId: modCase.caseId,
+      metadata: { targetUserId, reason: cleanReason, expiresAt },
+      correlationId,
+      stream: 'mod',
+      embed: buildModCaseEmbed(modCase),
+    });
+
+    return modCase;
+  }
+
+  async unbanUser({ serverId, actorId, targetUserId, reason = 'Ban lifted', correlationId = null }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    await this.permissionsApi.assertAuthorized({
+      serverId,
+      userId: actorId,
+      serverConfig: cfg,
+      requiredRole: 'moderator',
+    });
+
+    const cleanReason = sanitizeUserText(reason, { maxLength: 500, fieldName: 'Unban reason' });
+    const caseNumber = await this.caseRepo.nextCaseNumber(serverId);
+    const modCase = await this.caseRepo.create({
+      caseId: generateCaseId(),
+      caseNumber,
+      serverId,
+      action: 'UNBAN',
+      targetUserId,
+      moderatorId: actorId,
+      reason: cleanReason,
+      active: false,
+    });
+
+    await this.userRepo.updateUser(targetUserId, (draft) => {
+      draft.moderation.activeBan.active = false;
+      draft.moderation.activeBan.expiresAt = null;
+    });
+
+    if (cfg.roles.mutedRoleId) {
+      await this.permissionsApi
+        .removeMemberRole(serverId, targetUserId, cfg.roles.mutedRoleId)
+        .catch(() => undefined);
+    }
+
+    await this.logService.record({
+      serverId,
+      actorId,
+      actorType: 'STAFF',
+      action: 'UNBAN',
+      targetType: 'CASE',
+      targetId: modCase.caseId,
+      metadata: { targetUserId, reason: cleanReason },
+      correlationId,
+      stream: 'mod',
+      embed: buildModCaseEmbed(modCase),
+    });
+
+    return modCase;
+  }
+
+  /**
+   * Bulk-deletes recent messages in a channel (`/purge`), optionally filtering by author.
+   */
+  async purgeChannelMessages({
+    serverId,
+    channelId,
+    actorId,
+    count = 20,
+    targetUserId = null,
+    correlationId = null,
+  }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    await this.permissionsApi.assertAuthorized({
+      serverId,
+      userId: actorId,
+      serverConfig: cfg,
+      requiredRole: 'moderator',
+    });
+
+    const clamped = Math.max(1, Math.min(100, Number(count) || 20));
+    const recent = await this.messagesApi.fetchMessages(channelId, { limit: 100 });
+    const filtered = recent
+      .filter((m) => (!targetUserId ? true : m.author_id === targetUserId))
+      .slice(-clamped);
+    const ids = filtered.map((m) => m.id).filter(Boolean);
+
+    const { deletedCount } = await this.messagesApi.bulkDeleteMessages(channelId, ids);
+
+    await this.logService.record({
+      serverId,
+      actorId,
+      actorType: 'STAFF',
+      action: 'CHANNEL_PURGE',
+      targetType: 'CHANNEL',
+      targetId: channelId,
+      metadata: { deletedCount, targetUserId },
+      correlationId,
+      stream: 'mod',
+    });
+
+    return { deletedCount };
+  }
+
+  async setSlowmode({ serverId, channelId, actorId, seconds = 0, correlationId = null }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    await this.permissionsApi.assertAuthorized({
+      serverId,
+      userId: actorId,
+      serverConfig: cfg,
+      requiredRole: 'trialmod',
+    });
+    const updated = await this.channelsApi.editChannel(channelId, { slowmode: Number(seconds) || 0 });
+    await this.logService.record({
+      serverId,
+      actorId,
+      actorType: 'STAFF',
+      action: 'CHANNEL_SLOWMODE',
+      targetType: 'CHANNEL',
+      targetId: channelId,
+      metadata: { seconds: Number(seconds) || 0 },
+      correlationId,
+      stream: 'mod',
+    });
+    return updated;
+  }
+
+  async setChannelLock({ serverId, channelId, actorId, locked = true, reason = '', correlationId = null }) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    await this.permissionsApi.assertAuthorized({
+      serverId,
+      userId: actorId,
+      serverConfig: cfg,
+      requiredRole: 'moderator',
+    });
+
+    const staffPostRoles = [
+      ...cfg.staffRoles.adminRoleIds,
+      ...cfg.staffRoles.moderatorRoleIds,
+      ...cfg.staffRoles.trialModRoleIds,
+    ];
+    const updated = await this.channelsApi.editChannel(channelId, {
+      readOnly: Boolean(locked),
+      ...(locked && staffPostRoles.length > 0 ? { postRoleIds: staffPostRoles } : {}),
+    });
+
+    await this.logService.record({
+      serverId,
+      actorId,
+      actorType: 'STAFF',
+      action: locked ? 'CHANNEL_LOCKED' : 'CHANNEL_UNLOCKED',
+      targetType: 'CHANNEL',
+      targetId: channelId,
+      metadata: { reason },
+      correlationId,
+      stream: 'mod',
+    });
+    return updated;
+  }
+
+  /**
+   * Queues a private player report (`/report`) without auto-banning or auto-labeling the accused!
    */
   async submitReport({
     serverId,
     reporterId,
     targetUserId,
-    category = 'OTHER_SUSPICIOUS',
+    category = 'RDM_FAILRP',
     description,
-    tradeId = null,
     evidenceUrl = null,
-    correlationId,
+    correlationId = null,
   }) {
-    if (!isValidYapinId(targetUserId)) {
-      throw new ValidationError('Provide a valid Yapin User ID or `<@user_id>` mention to report.');
-    }
     if (reporterId === targetUserId) {
-      throw new ValidationError('You cannot submit a suspicious-behavior report against yourself.');
+      throw new ValidationError('You cannot submit a report against yourself.');
     }
-
-    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
-    if (cfg?.features?.reportsEnabled === false) {
-      throw new ValidationError('Suspicious-behavior reports are currently disabled.');
-    }
-
-    const upperCategory = String(category || 'OTHER_SUSPICIOUS').trim().toUpperCase();
-    const validCategory = REPORT_CATEGORIES.includes(upperCategory)
-      ? upperCategory
-      : 'OTHER_SUSPICIOUS';
-
-    const cleanDescription = sanitizeUserText(description || '', {
-      maxLength: 2000,
-      fieldName: 'Report description',
-    });
-    if (cleanDescription.length < 10) {
+    const normalizedCat = String(category || 'RDM_FAILRP').toUpperCase();
+    if (!REPORT_CATEGORIES.includes(normalizedCat)) {
       throw new ValidationError(
-        'Please describe the suspicious behavior in at least 10 characters so staff can review it fairly.',
+        `Invalid report category. Choose one of: ${REPORT_CATEGORIES.join(', ')}`,
       );
+    }
+
+    const cleanDesc = sanitizeUserText(description || '', {
+      maxLength: 2000,
+      fieldName: 'Report details',
+    });
+    if (cleanDesc.length < 8) {
+      throw new ValidationError('Please provide at least 8 characters describing what happened.');
     }
 
     const evidenceRefs = [];
@@ -234,43 +668,31 @@ export class ModerationService {
       evidenceRefs.push(validateSafeEvidenceUrl(evidenceUrl));
     }
 
-    const reportId = generateReportId();
-    const retainUntil = new Date(Date.now() + 90 * 86400 * 1000); // 90-day configurable evidence retention
-
     const report = await this.reportRepo.create({
-      reportId,
+      reportId: generateReportId(),
       serverId,
       reporterId,
       targetUserId,
-      tradeId,
-      category: validCategory,
-      description: cleanDescription,
+      category: normalizedCat,
+      description: cleanDesc,
       evidenceRefs,
       status: 'PENDING_REVIEW',
-      retainUntil,
     });
 
-    // Increment unverified openReportsCount ONLY — never label as scammer or auto-suspend!
-    await this.userRepo.updateRiskFlags(targetUserId, { incOpenReports: 1 });
+    await this.userRepo.updateUser(targetUserId, (draft) => {
+      draft.moderation.openReportsCount = (draft.moderation.openReportsCount || 0) + 1;
+    });
 
-    await this.auditService.record({
+    await this.logService.record({
       serverId,
       actorId: reporterId,
       actorType: 'USER',
-      action: 'SUSPICIOUS_BEHAVIOR_REPORTED',
+      action: 'PLAYER_REPORT_SUBMITTED',
       targetType: 'REPORT',
-      targetId: reportId,
-      afterState: { status: 'PENDING_REVIEW', category: validCategory, targetUserId },
-      metadata: { tradeId, evidenceCount: evidenceRefs.length },
+      targetId: report.reportId,
+      metadata: { category: normalizedCat, targetUserId },
       correlationId,
-    });
-
-    await this.antiScam.emitSuspiciousAlert({
-      serverId,
-      serverConfig: cfg,
-      title: `New Unverified Report (${reportId})`,
-      summary: `<@${reporterId}> submitted report \`${reportId}\` (${validCategory}) regarding <@${targetUserId}>. Status: \`PENDING_REVIEW\` (awaiting staff investigation).`,
-      metadata: { actorId: reporterId, reportId },
+      stream: 'alert',
     });
 
     return report;

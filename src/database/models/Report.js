@@ -2,18 +2,18 @@ import { z } from 'zod';
 import { dateField, nullableDateField, validateWithSchema } from './schemaHelpers.js';
 
 export const REPORT_CATEGORIES = Object.freeze([
-  'IMPERSONATION',
-  'FAKE_PROOF',
-  'OFF_PLATFORM_LURE',
-  'REFUSAL_TO_HONOR_TERMS',
+  'RDM_FAILRP',
+  'METAGAMING',
+  'HARASSMENT',
+  'EXPLOITING_SCAM',
   'STAFF_MISCONDUCT',
-  'OTHER_SUSPICIOUS',
+  'OTHER',
 ]);
 
 export const REPORT_STATUSES = Object.freeze([
   'PENDING_REVIEW',
   'UNDER_INVESTIGATION',
-  'SUBSTANTIATED',
+  'ACTION_TAKEN',
   'DISMISSED',
 ]);
 
@@ -22,16 +22,14 @@ export const ReportSchema = z.object({
   serverId: z.string().min(1),
   reporterId: z.string().min(1),
   targetUserId: z.string().min(1),
-  tradeId: z.string().nullable().default(null),
   ticketId: z.string().nullable().default(null),
-  category: z.enum(REPORT_CATEGORIES).default('OTHER_SUSPICIOUS'),
-  description: z.string().min(10).max(2000),
+  category: z.enum(REPORT_CATEGORIES).default('RDM_FAILRP'),
+  description: z.string().min(8).max(2000),
   evidenceRefs: z.array(z.string()).default([]),
   status: z.enum(REPORT_STATUSES).default('PENDING_REVIEW'),
   reviewedBy: z.string().nullable().default(null),
   reviewNotes: z.string().max(1000).nullable().default(null),
   reviewedAt: nullableDateField(),
-  retainUntil: nullableDateField(),
   createdAt: dateField(true),
   updatedAt: dateField(true),
 });

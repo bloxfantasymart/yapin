@@ -9,7 +9,7 @@ import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
 
 const execFileAsync = promisify(execFile);
 
-describe('Native Node ESM Module Graph & Production Bootstrap Verification', () => {
+describe('Native Node ESM Module Graph & MM2 Helper Production Bootstrap Verification', () => {
   it('loads all modules in src/ cleanly via native Node.js ESM loader with zero missing exports', async () => {
     const checkScript = `
       import fs from "node:fs";
@@ -30,14 +30,16 @@ describe('Native Node ESM Module Graph & Production Bootstrap Verification', () 
         await import(pathToFileURL(path.resolve(f)).href);
       }
     `;
-    const { stderr } = await execFileAsync(process.execPath, ['--input-type=module', '-e', checkScript], {
-      cwd: process.cwd(),
-    });
+    const { stderr } = await execFileAsync(
+      process.execPath,
+      ['--input-type=module', '-e', checkScript],
+      { cwd: process.cwd() },
+    );
     expect(stderr).toBe('');
   });
 
-  it('boots startApplication() end-to-end with local JSON storage, syncs 33 commands, and shuts down cleanly', async () => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'yapin-boot-test-'));
+  it('boots startApplication() end-to-end with local JSON storage, syncs 36 MM2 Helper commands, and shuts down cleanly', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mm2-boot-test-'));
     const mock = createMockYapinFetch();
 
     try {
@@ -55,7 +57,7 @@ describe('Native Node ESM Module Graph & Production Bootstrap Verification', () 
         },
       );
 
-      expect(mock.state.commands.length).toBe(33);
+      expect(mock.state.commands.length).toBe(36);
       const files = await fs.readdir(tmpDir);
       expect(files).toContain('server_configs.json');
 

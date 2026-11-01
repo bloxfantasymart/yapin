@@ -4,8 +4,7 @@ import { ValidationError } from '../utils/errors.js';
 const UNSAFE_UNICODE_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g;
 
 const STAFF_SPOOF_PATTERNS = [
-  /\[\s*(?:system|official|verified\s+middleman|admin\s+override|escrow\s+verified)\s*\]/i,
-  /deposit\s+already\s+confirmed\s+by\s+system/i,
+  /\[\s*(?:system|official|verified\s+sheriff|admin\s+override|high\s+sheriff)\s*\]/i,
 ];
 
 /**
@@ -55,7 +54,7 @@ export function containsSpoofedSystemBanner(text) {
 }
 
 /**
- * Validates optional evidence URLs submitted for deposits, disputes, or reports.
+ * Validates optional evidence URLs submitted for rulebreak reports or tickets.
  * Requires `https://` and blocks javascript:/data:/local-network SSRF targets.
  *
  * @param {string} urlStr

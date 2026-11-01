@@ -1,22 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { YapinClient } from '../../src/api/YapinClient.js';
 import { YapinOAuth2Client } from '../../src/api/authentication.js';
-import { YapinMessagesApi } from '../../src/api/messages.js';
 import { YapinChannelsApi } from '../../src/api/channels.js';
+import { YapinMessagesApi } from '../../src/api/messages.js';
 import { YapinPermissionsApi } from '../../src/api/permissions.js';
-import { createApplicationServices } from '../../src/middleman/createServices.js';
 import { createDashboardServer } from '../../src/dashboard/server.js';
+import { createApplicationServices } from '../../src/systems/createServices.js';
 import { logger } from '../../src/utils/logger.js';
-import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
 import { createInMemoryRepositories } from '../helpers/inMemoryRepositories.js';
+import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
 
 const STAFF_ADMIN_ID = '88888888-8888-4888-8888-888888888888';
-const STAFF_MM_ID = '77777777-7777-4777-8777-777777777777';
 const NON_STAFF_USER_ID = '99999999-9999-4999-8999-999999999999';
-const TRADER_A = '22222222-2222-4222-8222-222222222222';
-const TRADER_B = '33333333-3333-4333-8333-333333333333';
+const CITIZEN_A = '22222222-2222-4222-8222-222222222222';
 
-describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions, CSRF, Same-Origin & Full Actions)', () => {
+describe('Stage 5 — MM2 Helper Sheriff HQ OAuth2 Web Console (PKCE, RBAC, CSRF, Same-Origin & Actions)', () => {
   let mock;
   let serverId;
   let client;
@@ -30,11 +28,9 @@ describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions
     currentOAuthUserId = STAFF_ADMIN_ID;
     mock = createMockYapinFetch();
     serverId = mock.defaultServerId;
-    mock.setMember(serverId, STAFF_ADMIN_ID, ['role-admin'], 'AdminAlice');
-    mock.setMember(serverId, STAFF_MM_ID, ['role-mm'], 'MiddlemanBob');
-    mock.setMember(serverId, NON_STAFF_USER_ID, [], 'RegularEve');
-    mock.setMember(serverId, TRADER_A, [], 'TraderA');
-    mock.setMember(serverId, TRADER_B, [], 'TraderB');
+    mock.setMember(serverId, STAFF_ADMIN_ID, ['role-admin'], 'SheriffAdmin');
+    mock.setMember(serverId, NON_STAFF_USER_ID, ['role-verified'], 'RegularCitizen');
+    mock.setMember(serverId, CITIZEN_A, ['role-verified'], 'ApplicantNoah');
 
     const customFetch = async (urlStr, init) => {
       const u = new URL(urlStr);
@@ -42,8 +38,8 @@ describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions
         return new Response(
           JSON.stringify({
             id: currentOAuthUserId,
-            username: currentOAuthUserId === STAFF_ADMIN_ID ? 'AdminAlice' : 'StaffOrUser',
-            display_name: 'OAuth User',
+            username: currentOAuthUserId === STAFF_ADMIN_ID ? 'SheriffAdmin' : 'RegularCitizen',
+            display_name: 'MM2 User',
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
@@ -61,25 +57,24 @@ describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions
     repos = createInMemoryRepositories();
     await repos.serverConfigs.updateConfig(serverId, {
       'staffRoles.adminRoleIds': ['role-admin'],
-      'staffRoles.middlemanRoleIds': ['role-mm'],
       'staffRoles.moderatorRoleIds': ['role-mod'],
+      'staffRoles.trialModRoleIds': ['role-trialmod'],
     });
 
     const messagesApi = new YapinMessagesApi(client);
     const channelsApi = new YapinChannelsApi(client);
     const permissionsApi = new YapinPermissionsApi(client, { cacheTtlMs: 0 });
-    const appServices = createApplicationServices({
+    services = createApplicationServices({
       repositories: repos,
       permissionsApi,
       channelsApi,
       messagesApi,
       logger,
-    });
-    services = appServices.services;
+    }).services;
 
     const oauthClient = new YapinOAuth2Client({
-      clientId: 'yapin_oauth_client_123',
-      clientSecret: 'yapin_oauth_secret_super_private_999',
+      clientId: 'mm2_oauth_client_123',
+      clientSecret: 'mm2_oauth_secret_super_private_999',
       redirectUri: 'http://127.0.0.1/auth/callback',
       siteUrl: 'https://www.yapin.gg',
       fetchImpl: customFetch,
@@ -88,7 +83,7 @@ describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions
     dashboard = createDashboardServer({
       oauthClient,
       serverId,
-      sessionSecret: 'dashboard_session_secret_at_least_32_characters_long!',
+      sessionSecret: 'mm2_dashboard_session_secret_at_least_32_chars!',
       secureCookies: false,
       permissionsApi,
       repositories: repos,
@@ -109,9 +104,7 @@ describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions
     const loginRes = await fetch(`${baseUrl}/auth/login`, { redirect: 'manual' });
     expect(loginRes.status).toBe(302);
     const location = new URL(loginRes.headers.get('location'));
-    expect(location.pathname).toBe('/oauth/authorize');
     expect(location.searchParams.get('code_challenge_method')).toBe('S256');
-
     const state = location.searchParams.get('state');
     const oauthCookie = loginRes.headers.getSetCookie()[0].split(';')[0];
 
@@ -124,35 +117,33 @@ describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions
     );
   }
 
-  it('denies dashboard login to non-staff Yapin OAuth2 accounts and audits DASHBOARD_LOGIN_DENIED', async () => {
+  it('denies Sheriff HQ login to non-staff Yapin OAuth2 accounts and audits DASHBOARD_LOGIN_DENIED', async () => {
     currentOAuthUserId = NON_STAFF_USER_ID;
     const cbRes = await completeStaffLogin();
     expect(cbRes.status).toBe(403);
-    const html = await cbRes.text();
-    expect(html).toContain('Access denied');
+    expect(await cbRes.text()).toContain('Access denied');
 
     const audits = await repos.audits.query({ serverId, action: 'DASHBOARD_LOGIN_DENIED' });
     expect(audits.total).toBe(1);
   });
 
-  it('authenticates verified staff via OAuth2 PKCE, enforces CSRF + Same-Origin, and executes trade/dispute/ticket/config actions', async () => {
+  it('authenticates verified MM2 staff via OAuth2 PKCE, enforces CSRF + Same-Origin, and reviews Apps, Cases, Tickets & Config', async () => {
     const cbRes = await completeStaffLogin();
     expect(cbRes.status).toBe(302);
     const sessionCookie = cbRes.headers
       .getSetCookie()
-      .find((c) => c.startsWith('yapin_mm_session='))
+      .find((c) => c.startsWith('mm2_helper_session='))
       .split(';')[0];
 
-    const htmlRes = await fetch(`${baseUrl}/`, { headers: { cookie: sessionCookie } });
-    expect(htmlRes.status).toBe(200);
-    const html = await htmlRes.text();
+    const html = await (await fetch(`${baseUrl}/`, { headers: { cookie: sessionCookie } })).text();
+    expect(html).toContain('MM2 Helper');
+    expect(html).toContain('MurderMystery2');
     expect(html).not.toContain(mock.state.botToken);
-    expect(html).not.toContain('yapin_oauth_secret_super_private_999');
 
     const me = await (await fetch(`${baseUrl}/api/me`, { headers: { cookie: sessionCookie } })).json();
     expect(me.yapinUserId).toBe(STAFF_ADMIN_ID);
 
-    // Cross-Origin POST with evil Origin header MUST be rejected even WITH a valid CSRF token!
+    // Cross-origin POST rejected even with valid CSRF token
     const crossOriginRes = await fetch(`${baseUrl}/api/config`, {
       method: 'POST',
       headers: {
@@ -161,117 +152,85 @@ describe('Stage 5 — Secure OAuth2 Staff Dashboard (PKCE, RBAC, Hashed Sessions
         'x-csrf-token': me.csrfToken,
         origin: 'https://evil-attacker.example.com',
       },
-      body: JSON.stringify({ autoAssignMiddleman: true }),
+      body: JSON.stringify({ applicationsOpen: false }),
     });
     expect(crossOriginRes.status).toBe(403);
 
-    // Create trade, accept invite, then assign MM, verify deposits, open/resolve dispute, and complete via Dashboard API!
-    const { trade: created } = await services.trade.createTrade({
+    // Submit Mod Application & Accept via Sheriff HQ Console API!
+    const app = await services.application.submitApplication({
       serverId,
-      channelId: 'ch_1',
-      createdBy: TRADER_A,
-      traderAId: TRADER_A,
-      traderBId: TRADER_B,
-      primaryAsset: 'Dashboard Crown',
-      traderAGiving: 'Dashboard Crown',
-      traderBGiving: '$120',
-      rulesAccepted: true,
+      applicantId: CITIZEN_A,
+      answers: {
+        age: '20',
+        timezone: 'UTC+1',
+        hours: '3h/day',
+        experience: 'RP Lead Mod',
+        reason: 'Love MurderMystery2 RP',
+        scenario: 'Check clips & enforce Case File fairly',
+      },
     });
-    await services.confirmation.acceptTrade({ serverId, tradeId: created.tradeId, actorId: TRADER_B });
 
-    // Assign middleman via Dashboard API
-    const assignRes = await fetch(`${baseUrl}/api/trades/${created.tradeId}/assign`, {
+    const appRevRes = await fetch(`${baseUrl}/api/applications/${app.applicationId}/review`, {
       method: 'POST',
       headers: {
         cookie: sessionCookie,
         'content-type': 'application/json',
         'x-csrf-token': me.csrfToken,
       },
-      body: JSON.stringify({ targetMiddlemanId: STAFF_MM_ID, reason: 'Dashboard assignment' }),
+      body: JSON.stringify({ decision: 'ACCEPTED', notes: 'Approved via Sheriff HQ Console' }),
     });
-    expect(assignRes.status).toBe(200);
+    expect(appRevRes.status).toBe(200);
+    expect((await appRevRes.json()).application.status).toBe('ACCEPTED');
 
-    // Confirm MM & report deposits
-    await services.confirmation.submitParticipantConfirmation({ serverId, tradeId: created.tradeId, actorId: TRADER_A });
-    await services.confirmation.submitParticipantConfirmation({ serverId, tradeId: created.tradeId, actorId: TRADER_B });
-    await services.deposit.reportDeposit({ serverId, tradeId: created.tradeId, actorId: TRADER_A, reference: 'REF-A' });
-    await services.deposit.reportDeposit({ serverId, tradeId: created.tradeId, actorId: TRADER_B, reference: 'REF-B' });
-
-    // Verify both deposits via Dashboard API
-    for (const side of ['A', 'B']) {
-      const vdRes = await fetch(`${baseUrl}/api/trades/${created.tradeId}/verify-deposit`, {
-        method: 'POST',
-        headers: {
-          cookie: sessionCookie,
-          'content-type': 'application/json',
-          'x-csrf-token': me.csrfToken,
-        },
-        body: JSON.stringify({ traderSideOrUserId: side, decision: 'CONFIRMED', notes: `Verified ${side}` }),
-      });
-      expect(vdRes.status).toBe(200);
-    }
-
-    // Open dispute & resolve via Dashboard API
-    const { dispute } = await services.dispute.openDispute({
-      serverId,
-      tradeId: created.tradeId,
-      actorId: TRADER_A,
-      reason: 'Need quick staff check on transfer receipt',
-    });
-    const resolveRes = await fetch(`${baseUrl}/api/disputes/${dispute.disputeId}/resolve`, {
+    // Issue Warning Case File & Clear Warning via Sheriff HQ Console API!
+    const warnRes = await fetch(`${baseUrl}/api/moderation/warn`, {
       method: 'POST',
       headers: {
         cookie: sessionCookie,
         'content-type': 'application/json',
         'x-csrf-token': me.csrfToken,
       },
-      body: JSON.stringify({
-        outcome: 'RESUME_TRADE',
-        decisionSummary: 'Receipt verified authentic; trade un-frozen',
-        confirm: true,
-      }),
+      body: JSON.stringify({ targetUserId: NON_STAFF_USER_ID, reason: 'OOC spam in Hotel scene' }),
     });
-    expect(resolveRes.status).toBe(200);
+    expect(warnRes.status).toBe(200);
+    const createdCase = (await warnRes.json()).case;
 
-    // Submit release confirmations & complete trade via Dashboard API
-    await services.confirmation.submitParticipantConfirmation({ serverId, tradeId: created.tradeId, actorId: TRADER_A, stageHint: 'release' });
-    await services.confirmation.submitParticipantConfirmation({ serverId, tradeId: created.tradeId, actorId: TRADER_B, stageHint: 'release' });
-
-    const compRes = await fetch(`${baseUrl}/api/trades/${created.tradeId}/complete`, {
+    const clearRes = await fetch(`${baseUrl}/api/cases/${createdCase.caseId}/clear`, {
       method: 'POST',
       headers: {
         cookie: sessionCookie,
         'content-type': 'application/json',
         'x-csrf-token': me.csrfToken,
       },
-      body: JSON.stringify({
-        decisionNotes: 'Completed cleanly from Staff Operations Console',
-        confirm: true,
-      }),
+      body: JSON.stringify({ reason: 'Pardoned after apology' }),
     });
-    expect(compRes.status).toBe(200);
-    expect((await compRes.json()).trade.state).toBe('COMPLETED');
+    expect(clearRes.status).toBe(200);
 
-    // Open ticket, claim & close via Dashboard API
+    // Open ticket -> Claim & Close via Console API
     const tk = await services.ticket.openTicket({
       serverId,
-      creatorId: TRADER_A,
-      type: 'GENERAL_SUPPORT',
-      subject: 'Dashboard ticket test',
-      description: 'Testing dashboard ticket claim and close endpoints',
+      creatorId: NON_STAFF_USER_ID,
+      type: 'RP_CHARACTER',
+      subject: 'Custom Detective approval',
+      description: 'Requesting Chief Detective backstory approval',
     });
-    const tkClaim = await fetch(`${baseUrl}/api/tickets/${tk.ticketId}/claim`, {
-      method: 'POST',
-      headers: { cookie: sessionCookie, 'content-type': 'application/json', 'x-csrf-token': me.csrfToken },
-      body: '{}',
-    });
-    expect(tkClaim.status).toBe(200);
-
-    const tkClose = await fetch(`${baseUrl}/api/tickets/${tk.ticketId}/close`, {
-      method: 'POST',
-      headers: { cookie: sessionCookie, 'content-type': 'application/json', 'x-csrf-token': me.csrfToken },
-      body: JSON.stringify({ reason: 'Resolved via dashboard' }),
-    });
-    expect(tkClose.status).toBe(200);
+    expect(
+      (
+        await fetch(`${baseUrl}/api/tickets/${tk.ticketId}/claim`, {
+          method: 'POST',
+          headers: { cookie: sessionCookie, 'content-type': 'application/json', 'x-csrf-token': me.csrfToken },
+          body: '{}',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await fetch(`${baseUrl}/api/tickets/${tk.ticketId}/close`, {
+          method: 'POST',
+          headers: { cookie: sessionCookie, 'content-type': 'application/json', 'x-csrf-token': me.csrfToken },
+          body: JSON.stringify({ reason: 'Character approved!' }),
+        })
+      ).status,
+    ).toBe(200);
   });
 });

@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
-import { EMBED_COLORS } from '../config/settings.js';
 import { EmbedBuilder } from '../api/messages.js';
+import { BOT_BRAND, EMBED_COLORS } from '../config/settings.js';
 import { TICKET_TYPES } from '../database/models/Ticket.js';
+import { sanitizeUserText } from '../security/sanitizer.js';
+import { buildTicketEmbed, buildTicketRoomRows } from '../utils/embeds.js';
 import {
   AuthorizationError,
   ConflictError,
@@ -9,207 +10,144 @@ import {
   SecurityError,
   ValidationError,
 } from '../utils/errors.js';
-import { generateTicketId } from '../utils/ids.js';
-import { sanitizeUserText } from '../security/sanitizer.js';
+import { generateEntityId, generateTicketId, userMention } from '../utils/ids.js';
 
 /**
- * Private Ticket Lifecycle Service for Yapin.gg.
- *
- * Supports:
- * - GENERAL_SUPPORT, TRADE_ASSISTANCE, DISPUTE, SCAM_REPORT, STAFF_REPORT, APPEAL
- * - Real Yapin private channel enforcement (`PATCH /channels/:id` `{ private: true, role_ids }`)
- * - Fail-closed rollback + immediate staff alert if channel privacy lock fails
- * - Claim, Assign, Add Note, Close (with SHA-256 transcript), and Reopen
+ * Fail-Closed Private Support & Roleplay Ticket Desk for **MM2 Helper** (`MurderMystery2`).
  */
 export class TicketService {
-  /**
-   * @param {{
-   *   ticketRepo: import('../database/repositories/ticketDisputeRepository.js').MongooseTicketRepository,
-   *   serverConfigRepo: import('../database/repositories/auditConfigRepository.js').MongooseServerConfigRepository,
-   *   channelsApi: import('../api/channels.js').YapinChannelsApi,
-   *   messagesApi: import('../api/messages.js').YapinMessagesApi,
-   *   permissionsApi: import('../api/permissions.js').YapinPermissionsApi,
-   *   antiScam: import('../security/antiScam.js').AntiScamService,
-   *   transcriptService: import('./transcriptService.js').TranscriptService,
-   *   auditService: import('../middleman/auditService.js').AuditService,
-   * }} deps
-   */
   constructor({
     ticketRepo,
     serverConfigRepo,
-    channelsApi,
-    messagesApi,
     permissionsApi,
-    antiScam,
+    channelsApi = null,
+    messagesApi = null,
     transcriptService,
-    auditService,
+    logService,
+    logger = null,
   }) {
     this.ticketRepo = ticketRepo;
     this.serverConfigRepo = serverConfigRepo;
+    this.permissionsApi = permissionsApi;
     this.channelsApi = channelsApi;
     this.messagesApi = messagesApi;
-    this.permissionsApi = permissionsApi;
-    this.antiScam = antiScam;
     this.transcriptService = transcriptService;
-    this.auditService = auditService;
+    this.logService = logService;
+    this.logger = logger;
   }
 
-  /**
-   * Resolves the role IDs permitted to view a private ticket channel based on `ticket.type`.
-   * Notably, `STAFF_REPORT` tickets restrict visibility strictly to Admin/ManageServer roles!
-   */
-  async _resolveAllowedStaffRoleIds(serverId, cfg, ticketType) {
-    const serverRoles = await this.permissionsApi.fetchServerRoles(serverId);
-    const botRoleIds = await this.permissionsApi.getBotRoleIds(serverId);
-    const manageServerRoleIds = serverRoles
-      .filter((r) => r.manage_server || r.manageServer)
-      .map((r) => String(r.id));
-
-    const staffCfg = cfg?.staffRoles || {};
-    let roleIds;
-
-    if (ticketType === 'STAFF_REPORT') {
-      // Sensitive staff misconduct reports are visible ONLY to Admins + Bot
-      roleIds = [
-        ...(staffCfg.adminRoleIds || []),
-        ...manageServerRoleIds,
-        ...botRoleIds,
-      ];
-    } else {
-      roleIds = [
-        ...(staffCfg.adminRoleIds || []),
-        ...(staffCfg.moderatorRoleIds || []),
-        ...(staffCfg.middlemanRoleIds || []),
-        ...(staffCfg.supportRoleIds || []),
-        ...manageServerRoleIds,
-        ...botRoleIds,
-      ];
-    }
-
-    return [...new Set(roleIds.filter(Boolean))];
-  }
-
-  /**
-   * Opens a new private ticket, prevents duplicates, and enforces fail-closed channel privacy.
-   */
   async openTicket({
     serverId,
     creatorId,
     type = 'GENERAL_SUPPORT',
     subject,
     description,
-    tradeId = null,
     additionalParticipantIds = [],
-    correlationId,
+    correlationId = null,
   }) {
-    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
-    if (cfg?.features?.ticketsEnabled === false) {
-      throw new ValidationError('Tickets are currently disabled in server configuration.');
-    }
-
-    const upperType = String(type || 'GENERAL_SUPPORT').trim().toUpperCase();
-    if (!TICKET_TYPES.includes(upperType)) {
+    const normalizedType = String(type || 'GENERAL_SUPPORT').toUpperCase();
+    if (!TICKET_TYPES.includes(normalizedType)) {
       throw new ValidationError(
-        `Invalid ticket type "${type}". Supported types: ${TICKET_TYPES.join(', ')}.`,
+        `Invalid ticket category. Choose one of: ${TICKET_TYPES.join(', ')}`,
       );
     }
 
-    const cleanSubject = sanitizeUserText(subject || `${upperType} Request`, {
+    const cleanSubject = sanitizeUserText(subject || `${normalizedType} Case`, {
       maxLength: 200,
-      fieldName: 'Ticket subject',
-      allowNewlines: false,
+      fieldName: 'Subject',
     });
-    const cleanDescription = sanitizeUserText(description || '', {
-      maxLength: 2000,
-      fieldName: 'Ticket description',
-    });
-    if (cleanDescription.length < 5) {
-      throw new ValidationError('Please provide a ticket description of at least 5 characters.');
-    }
+    const cleanDesc = sanitizeUserText(
+      description || 'Opened via MurderMystery2 Support Desk button.',
+      { maxLength: 2000, fieldName: 'Description' },
+    );
 
-    // Prevent duplicate open tickets of the same type/trade
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+
     const duplicate = await this.ticketRepo.findOpenDuplicate({
       serverId,
       creatorId,
-      type: upperType,
-      tradeId,
+      type: normalizedType,
     });
     if (duplicate) {
       throw new ConflictError(
-        `You already have an open \`${upperType}\` ticket (\`${duplicate.ticketId}\`).`,
+        `You already have an open \`${normalizedType}\` ticket (\`${duplicate.ticketId}\`).`,
       );
     }
 
-    // Enforce max open tickets per user
     const openCount = await this.ticketRepo.countOpenByCreator(serverId, creatorId);
-    const maxOpen = cfg?.ticketConfig?.maxOpenPerUser ?? 2;
-    if (openCount >= maxOpen && upperType !== 'DISPUTE') {
+    if (openCount >= cfg.ticketConfig.maxOpenPerUser) {
       throw new ValidationError(
-        `You already have ${openCount} open tickets (server limit: ${maxOpen}).`,
+        `You already have ${openCount} open ticket(s) (maximum ${cfg.ticketConfig.maxOpenPerUser}).`,
       );
     }
 
     const ticketId = generateTicketId();
-    const participantIds = [...new Set([creatorId, ...additionalParticipantIds].filter(Boolean))];
-    const allowedRoleIds = await this._resolveAllowedStaffRoleIds(serverId, cfg, upperType);
+    const participantIds = [...new Set([creatorId, ...additionalParticipantIds.filter(Boolean)])];
 
     let channelId = null;
+    let allowedRoleIds = [];
     let scopedRoleId = null;
 
-    if (cfg?.ticketConfig?.createDedicatedChannel !== false) {
+    if (cfg.ticketConfig.createDedicatedChannel && this.channelsApi) {
+      const botRoles = await this.permissionsApi.getBotRoleIds(serverId);
+      // STAFF_REPORT is strictly restricted to Server Admins (never Trial Mods / Mods / Support!)
+      const staffRoles =
+        normalizedType === 'STAFF_REPORT'
+          ? [...cfg.staffRoles.adminRoleIds]
+          : [
+              ...cfg.staffRoles.adminRoleIds,
+              ...cfg.staffRoles.moderatorRoleIds,
+              ...cfg.staffRoles.trialModRoleIds,
+              ...cfg.staffRoles.supportRoleIds,
+            ];
+
+      const roleCandidates = [...new Set([...botRoles, ...staffRoles].filter(Boolean))];
+      if (roleCandidates.length === 0) {
+        const allServerRoles = await this.permissionsApi.fetchServerRoles(serverId);
+        for (const r of allServerRoles) {
+          if (r.manage_server || r.auto) roleCandidates.push(String(r.id));
+        }
+      }
+
       try {
-        const privateRes = await this.channelsApi.createPrivateChannel({
+        const provisioned = await this.channelsApi.createPrivateChannel({
           serverId,
-          name: `ticket-${ticketId.toLowerCase()}`,
-          categoryId: cfg?.channels?.ticketCategoryId || null,
-          allowedRoleIds,
+          name: `case-${ticketId.toLowerCase()}`,
+          categoryId: cfg.channels.ticketCategoryId,
+          allowedRoleIds: roleCandidates,
           participantUserIds: participantIds,
-          useScopedParticipantRole: Boolean(cfg?.ticketConfig?.useScopedParticipantRole),
+          useScopedParticipantRole: cfg.ticketConfig.useScopedParticipantRole,
         });
-        channelId = privateRes.channel.id;
-        scopedRoleId = privateRes.scopedRoleId;
+        channelId = provisioned.channel.id;
+        allowedRoleIds = provisioned.allowedRoleIds;
+        scopedRoleId = provisioned.scopedRoleId;
       } catch (err) {
-        // FAIL SECURELY: Never persist or expose a public ticket channel, and notify authorized staff!
-        await this.auditService.record({
+        // Alert staff & fail closed so private ticket details NEVER leak to a public channel!
+        await this.logService.record({
           serverId,
           actorId: creatorId,
           actorType: 'SYSTEM',
           action: 'TICKET_PRIVATE_LOCK_FAILED',
           targetType: 'TICKET',
           targetId: ticketId,
-          metadata: {
-            ticketType: upperType,
-            error: err?.message,
-            rollbackSucceeded: err?.metadata?.rollbackSucceeded ?? true,
-          },
+          metadata: { error: err?.message },
           correlationId,
+          stream: 'alert',
         });
-
-        await this.antiScam.emitSuspiciousAlert({
-          serverId,
-          serverConfig: cfg,
-          title: 'Ticket Private Channel Lock Failed (Fail-Closed)',
-          summary:
-            `Ticket \`${ticketId}\` (${upperType}) aborted channel creation because private role permissions could not be verified. ` +
-            'Verify the bot has the `Manage Channels` permission and configured staff role IDs.',
-          metadata: { actorId: creatorId, ticketId },
-        });
-
         throw new SecurityError(
-          'Unable to provision a private ticket channel securely. The channel was rolled back and server staff have been notified.',
+          'Unable to provision a private encrypted ticket channel (rolled back safely; staff alerted).',
         );
       }
     }
 
-    const ticket = await this.ticketRepo.create({
+    const created = await this.ticketRepo.create({
       ticketId,
       serverId,
       creatorId,
       participantIds,
-      tradeId,
-      type: upperType,
+      type: normalizedType,
       subject: cleanSubject,
-      description: cleanDescription,
+      description: cleanDesc,
       channelId,
       accessConfig: {
         isPrivate: true,
@@ -217,116 +155,104 @@ export class TicketService {
         scopedRoleId,
       },
       status: 'OPEN',
-      version: 1,
     });
 
     if (channelId && this.messagesApi) {
-      const introEmbed = new EmbedBuilder()
-        .setTitle(`🎫 Private Ticket ${ticketId} — ${upperType}`)
-        .setDescription(cleanDescription)
-        .setColor(EMBED_COLORS.PRIMARY)
-        .addField('Opened By', `<@${creatorId}>`, true)
-        .addField('Subject', cleanSubject, true)
-        .addField('Linked Trade', tradeId ? `\`${tradeId}\`` : 'None', true)
-        .setFooter('Private access enforced via Yapin role permissions')
-        .setTimestamp();
-
-      await this.messagesApi.sendMessage(channelId, { embeds: [introEmbed] }).catch(() => undefined);
+      await this.messagesApi
+        .sendMessage(channelId, {
+          content: `🕵️ **MurderMystery2 Case Room** opened for ${userMention(creatorId)} (\`${created.ticketId}\`)`,
+          embeds: [buildTicketEmbed(created)],
+          components: buildTicketRoomRows(created),
+        })
+        .catch(() => undefined);
     }
 
-    await this.auditService.record({
+    await this.logService.record({
       serverId,
       actorId: creatorId,
       actorType: 'USER',
       action: 'TICKET_OPENED',
       targetType: 'TICKET',
-      targetId: ticketId,
-      afterState: { status: 'OPEN', type: upperType, channelId, isPrivate: true },
+      targetId: created.ticketId,
+      afterState: { type: normalizedType, channelId },
       correlationId,
+      stream: 'ticket',
     });
 
-    return ticket;
+    return created;
   }
 
-  /**
-   * Verifies whether `viewerId` is allowed to read or interact with a ticket.
-   * `STAFF_REPORT` tickets block non-admin staff from snooping on reports against staff!
-   */
-  async assertTicketAccess(ticket, viewerId, { requireStaff = false } = {}) {
-    const cfg = await this.serverConfigRepo.getOrCreate(ticket.serverId);
-    const access = await this.permissionsApi.resolveMemberAccess(
-      ticket.serverId,
-      viewerId,
-      cfg,
-      { forceRefresh: requireStaff },
-    );
+  async _assertTicketAccess(serverId, ticket, actorId, { staffOnly = false } = {}) {
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    const access = await this.permissionsApi.resolveMemberAccess(serverId, actorId, cfg, {
+      forceRefresh: staffOnly,
+    });
 
-    const isEligibleStaff =
-      ticket.type === 'STAFF_REPORT' ? access.roles.isAdmin : access.roles.isStaff;
+    if (ticket.type === 'STAFF_REPORT') {
+      if (!access.roles.isAdmin && (staffOnly || ticket.creatorId !== actorId)) {
+        throw new AuthorizationError('STAFF_REPORT tickets are restricted to Server Admins.');
+      }
+      return access;
+    }
 
-    if (requireStaff && !isEligibleStaff) {
-      throw new AuthorizationError(
-        ticket.type === 'STAFF_REPORT'
-          ? 'Only server Admins may manage STAFF_REPORT tickets.'
-          : 'Only authorized server staff may perform this ticket action.',
-      );
+    if (staffOnly && !access.roles.isStaff) {
+      throw new AuthorizationError('Only MurderMystery2 Staff can perform this ticket action.');
     }
 
     const isParticipant =
-      ticket.creatorId === viewerId || (ticket.participantIds || []).includes(viewerId);
-
-    if (!isParticipant && !isEligibleStaff) {
+      ticket.creatorId === actorId || (ticket.participantIds || []).includes(actorId);
+    if (!isParticipant && !access.roles.isStaff) {
       throw new AuthorizationError('You do not have access to this private ticket.');
     }
-
-    return { access, isEligibleStaff, isParticipant };
+    return access;
   }
 
-  async claimTicket({ serverId, ticketId, actorId, correlationId }) {
+  async getTicketForViewer({ serverId, ticketId, viewerId }) {
     const ticket = await this.ticketRepo.findByTicketId(ticketId);
     if (!ticket || ticket.serverId !== serverId) {
       throw new NotFoundError(`Ticket \`${ticketId}\` was not found.`);
     }
+    const access = await this._assertTicketAccess(serverId, ticket, viewerId);
+    if (!access.roles.isStaff) {
+      ticket.notes = (ticket.notes || []).filter((n) => !n.internalOnly);
+    }
+    return ticket;
+  }
 
-    await this.assertTicketAccess(ticket, actorId, { requireStaff: true });
+  async claimTicket({ serverId, ticketId, actorId, correlationId = null }) {
+    const ticket = await this.ticketRepo.findByTicketId(ticketId);
+    if (!ticket || ticket.serverId !== serverId) {
+      throw new NotFoundError(`Ticket \`${ticketId}\` was not found.`);
+    }
+    await this._assertTicketAccess(serverId, ticket, actorId, { staffOnly: true });
 
     if (ticket.status === 'CLOSED') {
-      throw new ValidationError(`Ticket \`${ticketId}\` is closed. Reopen it before claiming.`);
-    }
-    if (ticket.assignedStaffId && ticket.assignedStaffId !== actorId) {
-      throw new ConflictError(`Ticket \`${ticketId}\` is already claimed by <@${ticket.assignedStaffId}>.`);
+      throw new ValidationError('Closed tickets must be reopened before claiming.');
     }
 
-    const updated = await this.ticketRepo.atomicUpdate(ticketId, {
+    const updated = await this.ticketRepo.atomicUpdate(ticket.ticketId, {
       expectedVersion: ticket.version,
       set: {
         assignedStaffId: actorId,
         status: 'CLAIMED',
       },
     });
-    if (!updated) throw new ConflictError('Ticket changed concurrently while claiming.');
+    if (!updated) throw new ConflictError('Ticket changed concurrently; please retry.');
 
-    await this.auditService.record({
+    await this.logService.record({
       serverId,
       actorId,
       actorType: 'STAFF',
       action: 'TICKET_CLAIMED',
       targetType: 'TICKET',
-      targetId: ticketId,
-      beforeState: { status: ticket.status, assignedStaffId: ticket.assignedStaffId },
-      afterState: { status: 'CLAIMED', assignedStaffId: actorId },
+      targetId: ticket.ticketId,
       correlationId,
+      stream: 'ticket',
     });
-
     return updated;
   }
 
-  async assignTicket({ serverId, ticketId, targetStaffId, actorId, correlationId }) {
-    const ticket = await this.ticketRepo.findByTicketId(ticketId);
-    if (!ticket || ticket.serverId !== serverId) {
-      throw new NotFoundError(`Ticket \`${ticketId}\` was not found.`);
-    }
-
+  async assignTicket({ serverId, ticketId, actorId, targetStaffId, correlationId = null }) {
     const cfg = await this.serverConfigRepo.getOrCreate(serverId);
     await this.permissionsApi.assertAuthorized({
       serverId,
@@ -334,203 +260,192 @@ export class TicketService {
       serverConfig: cfg,
       requiredRole: 'moderator',
     });
+    await this.permissionsApi.assertAuthorized({
+      serverId,
+      userId: targetStaffId,
+      serverConfig: cfg,
+      requiredRole: 'staff',
+    });
 
-    await this.assertTicketAccess(ticket, targetStaffId, { requireStaff: true });
-
-    if (ticket.status === 'CLOSED') {
-      throw new ValidationError(`Ticket \`${ticketId}\` is closed.`);
+    const ticket = await this.ticketRepo.findByTicketId(ticketId);
+    if (!ticket || ticket.serverId !== serverId) {
+      throw new NotFoundError(`Ticket \`${ticketId}\` was not found.`);
     }
 
-    const updated = await this.ticketRepo.atomicUpdate(ticketId, {
+    const updated = await this.ticketRepo.atomicUpdate(ticket.ticketId, {
       expectedVersion: ticket.version,
       set: {
         assignedStaffId: targetStaffId,
-        status: 'CLAIMED',
+        status: ticket.status === 'OPEN' ? 'CLAIMED' : ticket.status,
       },
     });
-    if (!updated) throw new ConflictError('Ticket changed concurrently while assigning.');
+    if (!updated) throw new ConflictError('Ticket changed concurrently.');
 
-    await this.auditService.record({
+    await this.logService.record({
       serverId,
       actorId,
       actorType: 'STAFF',
       action: 'TICKET_ASSIGNED',
       targetType: 'TICKET',
-      targetId: ticketId,
-      beforeState: { assignedStaffId: ticket.assignedStaffId },
+      targetId: ticket.ticketId,
       afterState: { assignedStaffId: targetStaffId },
       correlationId,
+      stream: 'ticket',
     });
-
     return updated;
   }
 
-  async addNote({ serverId, ticketId, actorId, content, internalOnly = false, correlationId }) {
+  async addNote({ serverId, ticketId, actorId, content, internalOnly = false, correlationId = null }) {
     const ticket = await this.ticketRepo.findByTicketId(ticketId);
     if (!ticket || ticket.serverId !== serverId) {
       throw new NotFoundError(`Ticket \`${ticketId}\` was not found.`);
     }
-
-    const { isEligibleStaff } = await this.assertTicketAccess(ticket, actorId, {
-      requireStaff: Boolean(internalOnly),
-    });
-
-    if (ticket.status === 'CLOSED') {
-      throw new ValidationError(`Ticket \`${ticketId}\` is closed and cannot receive new notes.`);
+    const access = await this._assertTicketAccess(serverId, ticket, actorId);
+    if (internalOnly && !access.roles.isStaff) {
+      throw new AuthorizationError('Only staff may add internal-only notes.');
     }
 
-    const cleanContent = sanitizeUserText(content || '', {
-      maxLength: 2000,
-      fieldName: 'Ticket note',
-    });
-    if (!cleanContent) {
-      throw new ValidationError('Ticket note content cannot be empty.');
-    }
-
-    const note = {
-      noteId: `note_${randomUUID().slice(0, 8)}`,
-      authorId: actorId,
-      content: cleanContent,
-      internalOnly: Boolean(internalOnly && isEligibleStaff),
-      createdAt: new Date(),
-    };
-
-    const updated = await this.ticketRepo.atomicUpdate(ticketId, {
+    const cleanNote = sanitizeUserText(content, { maxLength: 2000, fieldName: 'Ticket note' });
+    const updated = await this.ticketRepo.atomicUpdate(ticket.ticketId, {
       expectedVersion: ticket.version,
-      push: { notes: note },
+      push: {
+        notes: {
+          noteId: generateEntityId('NTE', 6),
+          authorId: actorId,
+          content: cleanNote,
+          internalOnly: Boolean(internalOnly),
+          createdAt: new Date(),
+        },
+      },
     });
-    if (!updated) throw new ConflictError('Ticket changed concurrently while adding note.');
+    if (!updated) throw new ConflictError('Ticket changed concurrently.');
 
-    await this.auditService.record({
+    await this.logService.record({
       serverId,
       actorId,
-      actorType: isEligibleStaff ? 'STAFF' : 'USER',
+      actorType: access.roles.isStaff ? 'STAFF' : 'USER',
       action: 'TICKET_NOTE_ADDED',
       targetType: 'TICKET',
-      targetId: ticketId,
-      metadata: { noteId: note.noteId, internalOnly: note.internalOnly },
+      targetId: ticket.ticketId,
+      metadata: { internalOnly: Boolean(internalOnly) },
       correlationId,
     });
-
     return updated;
   }
 
-  /**
-   * Closes a ticket, archives a SHA-256 checksummed transcript, records the closure reason,
-   * and sets channel `read_only: true` so unauthorized post-close tampering is prevented.
-   */
-  async closeTicket({ serverId, ticketId, actorId, reason, correlationId }) {
+  async closeTicket({ serverId, ticketId, actorId, reason, correlationId = null }) {
     const ticket = await this.ticketRepo.findByTicketId(ticketId);
     if (!ticket || ticket.serverId !== serverId) {
       throw new NotFoundError(`Ticket \`${ticketId}\` was not found.`);
     }
-
-    await this.assertTicketAccess(ticket, actorId, { requireStaff: true });
+    const access = await this._assertTicketAccess(serverId, ticket, actorId, { staffOnly: true });
 
     if (ticket.status === 'CLOSED') {
-      throw new ValidationError(`Ticket \`${ticketId}\` is already closed.`);
+      throw new ValidationError(`Ticket \`${ticket.ticketId}\` is already closed.`);
     }
 
-    const cleanReason = sanitizeUserText(reason || '', {
+    const cleanReason = sanitizeUserText(reason || 'Resolved by MurderMystery2 Staff', {
       maxLength: 1000,
-      fieldName: 'Ticket close reason',
+      fieldName: 'Close reason',
     });
-    if (cleanReason.length < 3) {
-      throw new ValidationError('Closing a ticket requires a documented reason (at least 3 characters).');
-    }
 
     const transcript = await this.transcriptService.buildTranscript({
       channelId: ticket.channelId,
       generatedBy: actorId,
-      fallbackNotes: ticket.notes || [],
+      fallbackNotes: ticket.notes,
     });
 
-    const now = new Date();
-    const updated = await this.ticketRepo.atomicUpdate(ticketId, {
+    const updated = await this.ticketRepo.atomicUpdate(ticket.ticketId, {
       expectedVersion: ticket.version,
       set: {
         status: 'CLOSED',
         transcript,
-        'closure.closedAt': now,
+        'closure.closedAt': new Date(),
         'closure.closedBy': actorId,
         'closure.reason': cleanReason,
       },
     });
-    if (!updated) throw new ConflictError('Ticket changed concurrently while closing.');
+    if (!updated) throw new ConflictError('Ticket changed concurrently.');
 
-    if (ticket.channelId) {
+    if (ticket.channelId && this.channelsApi) {
       await this.channelsApi
-        .editChannel(ticket.channelId, {
-          readOnly: true,
-          postRoleIds: ticket.accessConfig?.allowedRoleIds || [],
-        })
+        .editChannel(ticket.channelId, { readOnly: true })
         .catch(() => undefined);
     }
 
-    await this.auditService.record({
+    const cfg = await this.serverConfigRepo.getOrCreate(serverId);
+    const txChannelId = cfg.channels.transcriptChannelId || cfg.channels.ticketLogChannelId;
+    if (txChannelId && this.messagesApi) {
+      const txEmbed = new EmbedBuilder()
+        .setTitle(`🗄️ Archived Case Transcript • ${updated.ticketId}`)
+        .setColor(EMBED_COLORS.NOIR)
+        .addField('Category', `\`${updated.type}\``, true)
+        .addField('Closed By', userMention(actorId), true)
+        .addField('Messages Archived', String(transcript.messageCount), true)
+        .addField('SHA-256 Checksum', `\`${transcript.checksumSha256}\``, false)
+        .addField('Resolution Reason', cleanReason, false)
+        .setFooter(BOT_BRAND.footer);
+      await this.messagesApi.sendMessage(txChannelId, { embeds: [txEmbed] }).catch(() => undefined);
+    }
+
+    await this.logService.record({
       serverId,
       actorId,
-      actorType: 'STAFF',
+      actorType: access.roles.isStaff ? 'STAFF' : 'USER',
       action: 'TICKET_CLOSED',
       targetType: 'TICKET',
-      targetId: ticketId,
-      beforeState: { status: ticket.status },
-      afterState: {
-        status: 'CLOSED',
-        reason: cleanReason,
-        transcriptMessages: transcript.messageCount,
-        transcriptChecksum: transcript.checksumSha256,
-      },
+      targetId: updated.ticketId,
+      afterState: { status: 'CLOSED', checksumSha256: transcript.checksumSha256 },
       correlationId,
+      stream: 'ticket',
     });
-
     return updated;
   }
 
-  async reopenTicket({ serverId, ticketId, actorId, reason = 'Reopened by authorized staff', correlationId }) {
+  async reopenTicket({ serverId, ticketId, actorId, reason, correlationId = null }) {
     const ticket = await this.ticketRepo.findByTicketId(ticketId);
     if (!ticket || ticket.serverId !== serverId) {
       throw new NotFoundError(`Ticket \`${ticketId}\` was not found.`);
     }
-
-    await this.assertTicketAccess(ticket, actorId, { requireStaff: true });
+    await this._assertTicketAccess(serverId, ticket, actorId, { staffOnly: true });
 
     if (ticket.status !== 'CLOSED') {
-      throw new ValidationError(`Ticket \`${ticketId}\` is already open (\`${ticket.status}\`).`);
+      throw new ValidationError('Only CLOSED tickets can be reopened.');
     }
 
-    const cleanReason = sanitizeUserText(reason, { maxLength: 1000, fieldName: 'Reopen reason' });
-    const now = new Date();
+    const cleanReason = sanitizeUserText(reason || 'Reopened for follow-up investigation', {
+      maxLength: 1000,
+      fieldName: 'Reopen reason',
+    });
 
-    const updated = await this.ticketRepo.atomicUpdate(ticketId, {
+    const updated = await this.ticketRepo.atomicUpdate(ticket.ticketId, {
       expectedVersion: ticket.version,
       set: {
         status: 'REOPENED',
-        'closure.reopenedAt': now,
+        'closure.reopenedAt': new Date(),
         'closure.reopenedBy': actorId,
         'closure.reopenReason': cleanReason,
       },
     });
-    if (!updated) throw new ConflictError('Ticket changed concurrently while reopening.');
+    if (!updated) throw new ConflictError('Ticket changed concurrently.');
 
-    if (ticket.channelId) {
+    if (ticket.channelId && this.channelsApi) {
       await this.channelsApi
         .editChannel(ticket.channelId, { readOnly: false })
         .catch(() => undefined);
     }
 
-    await this.auditService.record({
+    await this.logService.record({
       serverId,
       actorId,
       actorType: 'STAFF',
       action: 'TICKET_REOPENED',
       targetType: 'TICKET',
-      targetId: ticketId,
-      beforeState: { status: 'CLOSED' },
-      afterState: { status: 'REOPENED', reopenReason: cleanReason },
+      targetId: updated.ticketId,
+      metadata: { reason: cleanReason },
       correlationId,
+      stream: 'ticket',
     });
-
     return updated;
   }
 }

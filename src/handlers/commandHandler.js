@@ -1,4 +1,4 @@
-import { DEFAULT_COOLDOWNS } from '../config/settings.js';
+import { BOT_BRAND, DEFAULT_COOLDOWNS } from '../config/settings.js';
 import { generateCorrelationId } from '../utils/ids.js';
 import { withCorrelationLogger } from '../utils/logger.js';
 import { handleCommandError } from './errorHandler.js';
@@ -51,7 +51,7 @@ export class CommandHandler {
     try {
       if (!event.server_id) {
         await this.messagesApi.sendMessage(event.channel_id, {
-          content: '❌ Middleman Bot commands can only be executed inside an authorized Yapin server channel.',
+          content: `❌ **${BOT_BRAND.botName}** commands can only be executed inside **${BOT_BRAND.serverName}** channels.`,
           replyTo: event.id,
         });
         return true;
@@ -62,8 +62,9 @@ export class CommandHandler {
       // 1. Cooldown & anti-spam enforcement
       if (this.cooldowns) {
         const cooldownMap = {
-          middleman: serverCfg.cooldowns?.tradeCreateMs ?? DEFAULT_COOLDOWNS.tradeCreateMs,
+          verify: serverCfg.cooldowns?.verifyAttemptMs ?? DEFAULT_COOLDOWNS.verifyAttemptMs,
           ticket: serverCfg.cooldowns?.ticketCreateMs ?? DEFAULT_COOLDOWNS.ticketCreateMs,
+          apply: serverCfg.cooldowns?.applicationSubmitMs ?? DEFAULT_COOLDOWNS.applicationSubmitMs,
           report: serverCfg.cooldowns?.reportCreateMs ?? DEFAULT_COOLDOWNS.reportCreateMs,
         };
         const cooldownMs =
@@ -78,13 +79,13 @@ export class CommandHandler {
         });
       }
 
-      // 2. Server-side RBAC check BEFORE executing any staffOnly command!
+      // 2. Server-side RBAC check BEFORE executing any staffOnly command
       if (command.staffOnly) {
         await this.permissionsApi.assertAuthorized({
           serverId: event.server_id,
           userId: event.author_id,
           serverConfig: serverCfg,
-          requiredRole: command.requiredRole || 'middleman',
+          requiredRole: command.requiredRole || 'staff',
           forceRefresh: true,
         });
       }
@@ -111,7 +112,7 @@ export class CommandHandler {
           }),
       });
 
-      log.info({ durationMs: Date.now() - startedAt }, 'Command executed successfully');
+      log.info({ durationMs: Date.now() - startedAt }, 'MM2 Helper command executed successfully');
       return true;
     } catch (error) {
       await handleCommandError({

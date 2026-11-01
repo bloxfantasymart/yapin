@@ -1,7 +1,7 @@
 {
-  "name": "yapin-middleman-bot",
-  "version": "1.0.0",
-  "description": "Production-ready Middleman Coordination, Verification, Ticket & Dispute Bot for Yapin.gg",
+  "name": "mm2-helper-bot",
+  "version": "2.0.0",
+  "description": "MM2 Helper — Official MurderMystery2 Roleplay, Verification, Tickets, Mod Applications, Moderation, Leveling & Logs Bot for Yapin.gg",
   "type": "module",
   "main": "src/index.js",
   "engines": {
@@ -21,11 +21,13 @@
   "keywords": [
     "yapin",
     "yapin.gg",
-    "middleman",
-    "bot",
-    "trading",
+    "mm2",
+    "murder-mystery-2",
+    "roleplay",
+    "moderation",
     "tickets",
-    "disputes",
+    "verification",
+    "leveling",
     "json-storage"
   ],
   "license": "MIT",

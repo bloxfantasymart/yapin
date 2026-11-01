@@ -2,11 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { YapinClient } from '../../src/api/YapinClient.js';
 import { YapinCommandsApi } from '../../src/api/commands.js';
 import { YapinMessagesApi } from '../../src/api/messages.js';
-import pingCommand from '../../src/commands/ping.js';
+import { YapinPermissionsApi } from '../../src/api/permissions.js';
+import { ALL_COMMANDS, createCommandRegistry } from '../../src/commands/index.js';
+import { pingCommand } from '../../src/commands/ping.js';
+import { connectDatabase, disconnectDatabase } from '../../src/database/connection.js';
+import { createInMemoryRepositories } from '../helpers/inMemoryRepositories.js';
 import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
-describe('Stage 1 — Command Registration & Verified /ping Command', () => {
-  it('validates and registers commands via PUT /commands and rejects unsupported names or duplicates', async () => {
+describe('Stage 1 — MM2 Helper Command Registration & Telemetry Commands', () => {
+  it('validates and syncs all 36 MM2 Helper commands via PUT /commands within Yapin limits', async () => {
     const mock = createMockYapinFetch();
     const client = new YapinClient({
       token: mock.state.botToken,
@@ -14,22 +21,26 @@ describe('Stage 1 — Command Registration & Verified /ping Command', () => {
       enableGateway: false,
     });
     const commandsApi = new YapinCommandsApi(client);
+    const registry = createCommandRegistry();
 
-    const res = await commandsApi.syncCommands([
-      { name: pingCommand.name, description: pingCommand.description },
-      { name: 'middleman', description: 'Create a middleman trade request' },
-    ]);
+    const defs = registry.toYapinDefinitions();
+    expect(defs.length).toBe(ALL_COMMANDS.length);
+    expect(defs.length).toBe(36);
 
-    expect(res.registeredCount).toBe(2);
+    const res = await commandsApi.syncCommands(defs);
+    expect(res.registeredCount).toBe(36);
+
     const listed = await commandsApi.listRegisteredCommands();
-    expect(listed.map((c) => c.name)).toEqual(['ping', 'middleman']);
+    expect(listed.map((c) => c.name)).toContain('verify');
+    expect(listed.map((c) => c.name)).toContain('apply');
+    expect(listed.map((c) => c.name)).toContain('ticket');
+    expect(listed.map((c) => c.name)).toContain('mystery');
+    expect(listed.map((c) => c.name)).not.toContain('middleman');
 
-    // Rejects invalid characters (spaces / uppercase / symbols)
     expect(() =>
       commandsApi.validateDefinitions([{ name: 'bad space!', description: 'invalid' }]),
     ).toThrow(/1-32 characters/i);
 
-    // Rejects duplicate command names
     expect(() =>
       commandsApi.validateDefinitions([
         { name: 'ping', description: 'a' },
@@ -38,39 +49,52 @@ describe('Stage 1 — Command Registration & Verified /ping Command', () => {
     ).toThrow(/Duplicate/i);
   });
 
-  it('executes /ping using real GET /me round-trip and replies with reply_to quoting', async () => {
-    const mock = createMockYapinFetch();
-    const client = new YapinClient({
-      token: mock.state.botToken,
-      fetchImpl: mock.fetchImpl,
-      enableGateway: false,
-    });
-    const messagesApi = new YapinMessagesApi(client);
+  it('executes /ping and reports MM2 Helper Gateway & JSON storage health', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mm2-ping-'));
+    try {
+      await connectDatabase(tmpDir);
+      const mock = createMockYapinFetch();
+      const client = new YapinClient({
+        token: mock.state.botToken,
+        fetchImpl: mock.fetchImpl,
+        enableGateway: false,
+      });
+      const messagesApi = new YapinMessagesApi(client);
+      const permissionsApi = new YapinPermissionsApi(client);
+      const repos = createInMemoryRepositories();
 
-    const incomingMessage = {
-      id: 'msg-user-1',
-      channel_id: 'ch-general',
-      server_id: mock.defaultServerId,
-      author_id: mock.ownerId,
-      command: 'ping',
-      args: '',
-    };
+      const event = {
+        id: 'msg-user-1',
+        channel_id: 'ch-general',
+        server_id: mock.defaultServerId,
+        author_id: mock.ownerId,
+        command: 'ping',
+        args: '',
+      };
 
-    const sent = await pingCommand.execute({
-      client,
-      messagesApi,
-      message: incomingMessage,
-      serverId: incomingMessage.server_id,
-      channelId: incomingMessage.channel_id,
-      authorId: incomingMessage.author_id,
-      correlationId: 'cor_test_ping_1',
-      reply: (payload) => messagesApi.replyToMessage(incomingMessage, payload),
-    });
+      let sent = null;
+      await pingCommand.execute({
+        event,
+        client,
+        messagesApi,
+        permissionsApi,
+        repositories: repos,
+        reply: async (opts) => {
+          sent = await messagesApi.sendMessage(event.channel_id, {
+            ...opts,
+            replyTo: event.id,
+          });
+          return sent;
+        },
+      });
 
-    expect(sent.channel_id).toBe('ch-general');
-    expect(sent.reply_to_id).toBe('msg-user-1');
-    expect(sent.embeds).toHaveLength(1);
-    expect(sent.embeds[0].title).toContain('Pong');
-    expect(sent.embeds[0].fields.some((f) => f.name === 'REST Latency')).toBe(true);
+      expect(sent.channel_id).toBe('ch-general');
+      expect(sent.reply_to_id).toBe('msg-user-1');
+      expect(sent.embeds[0].title).toContain('MM2 Helper');
+      expect(sent.embeds[0].fields.some((f) => f.name === 'JSON Storage')).toBe(true);
+    } finally {
+      await disconnectDatabase();
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 });

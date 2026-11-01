@@ -8,11 +8,10 @@ import {
 
 export const TICKET_TYPES = Object.freeze([
   'GENERAL_SUPPORT',
-  'TRADE_ASSISTANCE',
-  'DISPUTE',
-  'SCAM_REPORT',
-  'STAFF_REPORT',
+  'RP_CHARACTER',
+  'RULE_VIOLATION',
   'APPEAL',
+  'STAFF_REPORT',
 ]);
 
 export const TICKET_STATUSES = Object.freeze(['OPEN', 'CLAIMED', 'CLOSED', 'REOPENED']);
@@ -38,7 +37,6 @@ export const TicketSchema = z.object({
   serverId: z.string().trim().min(1),
   creatorId: z.string().trim().min(1),
   participantIds: z.array(z.string()).default([]),
-  tradeId: z.string().nullable().default(null),
   type: z.enum(TICKET_TYPES),
   subject: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(2000),

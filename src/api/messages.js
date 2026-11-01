@@ -171,6 +171,15 @@ export class ButtonBuilder {
     return this;
   }
 
+  setStyle(style) {
+    const s = String(style || 'secondary').trim().toLowerCase();
+    if (!['primary', 'secondary', 'success', 'danger', 'link'].includes(s)) {
+      throw new ValidationError(`Invalid Yapin button style "${style}".`);
+    }
+    this.data.style = s;
+    return this;
+  }
+
   setUrl(url) {
     const s = String(url).trim();
     if (!s.startsWith('https://')) {
@@ -217,6 +226,10 @@ export class ActionRowBuilder {
     }
     this.buttons.push(...flat);
     return this;
+  }
+
+  addButtons(...buttons) {
+    return this.addComponents(...buttons);
   }
 
   toJSON() {
@@ -494,5 +507,24 @@ export class YapinMessagesApi {
       'PUT',
       `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/pin`,
     );
+  }
+
+  /**
+   * Bulk-deletes up to 100 messages in a channel (`POST /channels/:id/messages/bulk-delete`).
+   * Falls back cleanly to single `DELETE` when only 1 message is targeted.
+   */
+  async bulkDeleteMessages(channelId, messageIds = []) {
+    const ids = [...new Set(messageIds.filter(Boolean))].slice(0, YAPIN_LIMITS.BULK_DELETE_MAX);
+    if (ids.length === 0) return { deletedCount: 0 };
+    if (ids.length === 1) {
+      await this.deleteMessage(channelId, ids[0]);
+      return { deletedCount: 1 };
+    }
+    await this.client.request(
+      'POST',
+      `/channels/${encodeURIComponent(channelId)}/messages/bulk-delete`,
+      { body: { message_ids: ids } },
+    );
+    return { deletedCount: ids.length };
   }
 }

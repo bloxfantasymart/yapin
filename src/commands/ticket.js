@@ -1,128 +1,112 @@
-import { EMBED_COLORS } from '../config/settings.js';
-import { EmbedBuilder } from '../api/messages.js';
+import { parseBooleanInput, parseCommandArgs } from '../utils/argParser.js';
+import { buildTicketEmbed } from '../utils/embeds.js';
 import { ValidationError } from '../utils/errors.js';
-import { parseCommandArgs } from '../utils/argParser.js';
 import { extractYapinUserId } from '../utils/ids.js';
 
 export const ticketCommand = {
   name: 'ticket',
-  description: 'Open or manage private support, trade assistance, dispute, scam report, staff report, or appeal tickets.',
-  usage:
-    '/ticket open type=GENERAL_SUPPORT|TRADE_ASSISTANCE|DISPUTE|SCAM_REPORT|STAFF_REPORT|APPEAL subject="..." description="..." [trade=TRD-...]\n' +
-    '/ticket note|close|reopen|claim|assign|view <TKT-...> ...',
+  description: 'Open or manage private MurderMystery2 Support & RP Tickets.',
+  usage: '/ticket <open|view|claim|assign|note|close|reopen> ...',
   category: 'tickets',
   staffOnly: false,
 
   async execute(ctx) {
     const { positional, kv } = parseCommandArgs(ctx.event.args || '');
-    const sub = (positional[0] || kv.action || 'open').toLowerCase();
+    const sub = (positional[0] || '').toLowerCase();
 
     if (sub === 'open') {
-      if (!kv.subject || !kv.description) {
-        throw new ValidationError(
-          'Usage: `/ticket open type=GENERAL_SUPPORT subject="Need help" description="Detailed issue..." [trade=TRD-...]`',
-        );
-      }
-      const ticket = await ctx.services.ticket.openTicket({
+      const type = (kv.type || positional[1] || 'GENERAL_SUPPORT').toUpperCase();
+      const subject = kv.subject || positional[2] || `${type} Inquiry`;
+      const description =
+        kv.description || positional.slice(3).join(' ') || subject;
+
+      const created = await ctx.services.ticket.openTicket({
         serverId: ctx.event.server_id,
         creatorId: ctx.event.author_id,
-        type: (kv.type || 'GENERAL_SUPPORT').toUpperCase(),
-        subject: kv.subject,
-        description: kv.description,
-        tradeId: kv.trade ? kv.trade.toUpperCase() : null,
+        type,
+        subject,
+        description,
         correlationId: ctx.correlationId,
       });
 
-      const embed = new EmbedBuilder()
-        .setTitle(`🎫 Ticket Opened — ${ticket.ticketId}`)
-        .setColor(EMBED_COLORS.SUCCESS)
-        .addField('Type', ticket.type, true)
-        .addField('Private Channel', ticket.channelId ? `<#${ticket.channelId}>` : 'Created', true)
-        .addField('Status', ticket.status, true);
-
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        embeds: [embed],
-        replyTo: ctx.event.id,
+      await ctx.reply({
+        content: created.channelId
+          ? `🕵️ Private Ticket \`${created.ticketId}\` opened in <#${created.channelId}>.`
+          : `🕵️ Private Ticket \`${created.ticketId}\` opened.`,
+        embeds: [buildTicketEmbed(created)],
       });
       return;
     }
 
-    const ticketId = (positional[1] || kv.id || kv.ticket || '').toUpperCase();
-    if (!ticketId) {
-      throw new ValidationError(`Specify a ticket ID (\`TKT-...\`) for \`/ticket ${sub}\`.`);
-    }
-
     if (sub === 'view') {
-      const ticket = await ctx.repositories.tickets.findByTicketId(ticketId);
-      if (!ticket || ticket.serverId !== ctx.event.server_id) {
-        throw new ValidationError(`Ticket \`${ticketId}\` not found.`);
-      }
-      await ctx.services.ticket.assertTicketAccess(ticket, ctx.event.author_id);
-
-      const embed = new EmbedBuilder()
-        .setTitle(`🎫 Ticket ${ticket.ticketId} — ${ticket.status}`)
-        .setDescription(`**Subject:** ${ticket.subject}\n${ticket.description}`)
-        .setColor(EMBED_COLORS.INFO)
-        .addField('Type', ticket.type, true)
-        .addField('Creator', `<@${ticket.creatorId}>`, true)
-        .addField('Assigned Staff', ticket.assignedStaffId ? `<@${ticket.assignedStaffId}>` : 'Unclaimed', true)
-        .addField('Notes Count', String(ticket.notes?.length || 0), true);
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, { embeds: [embed], replyTo: ctx.event.id });
+      const ticketId = (kv.id || positional[1] || '').toUpperCase();
+      if (!ticketId) throw new ValidationError('Provide a Ticket ID (`TKT-...`).');
+      const ticket = await ctx.services.ticket.getTicketForViewer({
+        serverId: ctx.event.server_id,
+        ticketId,
+        viewerId: ctx.event.author_id,
+      });
+      await ctx.reply({ embeds: [buildTicketEmbed(ticket)] });
       return;
     }
 
     if (sub === 'claim') {
+      const ticketId = (kv.id || positional[1] || '').toUpperCase();
+      if (!ticketId) throw new ValidationError('Provide a Ticket ID (`TKT-...`).');
       const updated = await ctx.services.ticket.claimTicket({
         serverId: ctx.event.server_id,
         ticketId,
         actorId: ctx.event.author_id,
         correlationId: ctx.correlationId,
       });
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `🛡️ Ticket **${updated.ticketId}** claimed by <@${ctx.event.author_id}>.`,
-        replyTo: ctx.event.id,
+      await ctx.reply({
+        content: `👮 Claimed Ticket \`${updated.ticketId}\`.`,
+        embeds: [buildTicketEmbed(updated)],
       });
       return;
     }
 
     if (sub === 'assign') {
-      const targetStaffId = extractYapinUserId(kv.staff || kv.user || positional[2]);
-      if (!targetStaffId) throw new ValidationError('Specify `staff=<@uuid>` to assign.');
+      const ticketId = (kv.id || positional[1] || '').toUpperCase();
+      const staffId = extractYapinUserId(kv.staff || positional[2] || '');
+      if (!ticketId || !staffId) {
+        throw new ValidationError('Usage: `/ticket assign <TKT-ID> <@staff>`');
+      }
       const updated = await ctx.services.ticket.assignTicket({
         serverId: ctx.event.server_id,
         ticketId,
         actorId: ctx.event.author_id,
-        targetStaffId,
+        targetStaffId: staffId,
         correlationId: ctx.correlationId,
       });
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `🛡️ Ticket **${updated.ticketId}** assigned to <@${targetStaffId}>.`,
-        replyTo: ctx.event.id,
-      });
+      await ctx.reply({ embeds: [buildTicketEmbed(updated)] });
       return;
     }
 
     if (sub === 'note') {
-      const content = kv.note || kv.content || positional.slice(2).join(' ');
-      if (!content) throw new ValidationError('Provide `note="..."` content.');
+      const ticketId = (kv.id || positional[1] || '').toUpperCase();
+      const content = kv.text || positional.slice(2).join(' ');
+      if (!ticketId || !content) {
+        throw new ValidationError('Usage: `/ticket note <TKT-ID> <message>`');
+      }
       const updated = await ctx.services.ticket.addNote({
         serverId: ctx.event.server_id,
         ticketId,
         actorId: ctx.event.author_id,
         content,
-        internalOnly: kv.internal === 'yes' || kv.internal === 'true',
+        internalOnly: parseBooleanInput(kv.internal),
         correlationId: ctx.correlationId,
       });
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `📝 Note recorded on **${updated.ticketId}** (total notes: ${updated.notes.length}).`,
-        replyTo: ctx.event.id,
+      await ctx.reply({
+        content: `📝 Note appended to \`${updated.ticketId}\` (${updated.notes.length} total).`,
       });
       return;
     }
 
     if (sub === 'close') {
-      const reason = kv.reason || positional.slice(2).join(' ');
-      if (!reason) throw new ValidationError('Provide `reason="..."` when closing a ticket.');
+      const ticketId = (kv.id || positional[1] || '').toUpperCase();
+      const reason = kv.reason || positional.slice(2).join(' ') || 'Resolved';
+      if (!ticketId) throw new ValidationError('Usage: `/ticket close <TKT-ID> [reason]`');
       const closed = await ctx.services.ticket.closeTicket({
         serverId: ctx.event.server_id,
         ticketId,
@@ -130,31 +114,32 @@ export const ticketCommand = {
         reason,
         correlationId: ctx.correlationId,
       });
-      const checksum = closed.transcript?.checksumSha256 || 'recorded';
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `🔒 Ticket **${closed.ticketId}** closed. Transcript SHA-256: \`${checksum.slice(0, 16)}...\`.`,
-        replyTo: ctx.event.id,
+      await ctx.reply({
+        content: `🔒 Ticket \`${closed.ticketId}\` archived (SHA-256: \`${closed.transcript?.checksumSha256?.slice(0, 16)}...\`).`,
       });
       return;
     }
 
     if (sub === 'reopen') {
-      const reason = kv.reason || positional.slice(2).join(' ');
-      if (!reason) throw new ValidationError('Provide `reason="..."` when reopening a ticket.');
-      const updated = await ctx.services.ticket.reopenTicket({
+      const ticketId = (kv.id || positional[1] || '').toUpperCase();
+      const reason = kv.reason || positional.slice(2).join(' ') || 'Reopened by Staff';
+      if (!ticketId) throw new ValidationError('Usage: `/ticket reopen <TKT-ID> [reason]`');
+      const reopened = await ctx.services.ticket.reopenTicket({
         serverId: ctx.event.server_id,
         ticketId,
         actorId: ctx.event.author_id,
         reason,
         correlationId: ctx.correlationId,
       });
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `🔓 Ticket **${updated.ticketId}** reopened by <@${ctx.event.author_id}>.`,
-        replyTo: ctx.event.id,
+      await ctx.reply({
+        content: `🔓 Ticket \`${reopened.ticketId}\` reopened.`,
+        embeds: [buildTicketEmbed(reopened)],
       });
       return;
     }
 
-    throw new ValidationError(`Unknown ticket subcommand \`${sub}\`. Use: open, view, claim, assign, note, close, reopen.`);
+    throw new ValidationError(
+      'Subcommands: `/ticket open`, `/ticket view`, `/ticket claim`, `/ticket assign`, `/ticket note`, `/ticket close`, `/ticket reopen`.',
+    );
   },
 };

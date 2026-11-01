@@ -3,11 +3,7 @@ import { SecurityError } from '../../utils/errors.js';
 import { dateField, deepFreezeRecord, validateWithSchema } from './schemaHelpers.js';
 
 /**
- * Append-Only AuditLog Schema (JSON Storage Edition)
- *
- * Security invariant:
- * Audit entries are frozen (`Object.freeze`) and strictly append-only.
- * Update and delete operations are unconditionally blocked at both model and store levels.
+ * Append-Only AuditLog Schema for **MM2 Helper** (`MurderMystery2`).
  */
 export const AuditLogSchema = z.object({
   auditId: z.string().min(1),
@@ -16,11 +12,13 @@ export const AuditLogSchema = z.object({
   actorType: z.enum(['USER', 'STAFF', 'SYSTEM']),
   action: z.string().min(1),
   targetType: z.enum([
-    'TRADE',
-    'TICKET',
-    'DISPUTE',
     'USER',
+    'CASE',
+    'TICKET',
+    'APPLICATION',
     'REPORT',
+    'ROLEPLAY',
+    'CHANNEL',
     'SERVER_CONFIG',
     'SYSTEM',
   ]),

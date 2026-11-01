@@ -36,7 +36,7 @@ export function buildBotAuthHeaders(token, options = {}) {
   const headers = {
     authorization: `Bot ${validToken}`,
     accept: 'application/json',
-    'user-agent': options.userAgent || 'yapin-middleman-bot/1.0',
+    'user-agent': options.userAgent || 'mm2-helper-bot/2.0',
     ...(options.extraHeaders || {}),
   };
   if (options.hasJsonBody) {

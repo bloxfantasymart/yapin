@@ -1,8 +1,8 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { AuthorizationError, RateLimitExceededError, SecurityError } from '../utils/errors.js';
 
-export const SESSION_COOKIE_NAME = 'yapin_mm_session';
-export const OAUTH_STATE_COOKIE_NAME = 'yapin_mm_oauth';
+export const SESSION_COOKIE_NAME = 'mm2_helper_session';
+export const OAUTH_STATE_COOKIE_NAME = 'mm2_helper_oauth';
 
 export function sha256Hex(value) {
   return createHash('sha256').update(String(value), 'utf8').digest('hex');

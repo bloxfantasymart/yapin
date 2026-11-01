@@ -1,130 +1,211 @@
-import { EMBED_COLORS } from '../../config/settings.js';
 import { EmbedBuilder } from '../../api/messages.js';
+import { BOT_BRAND, EMBED_COLORS } from '../../config/settings.js';
+import { parseBooleanInput, parseCommandArgs } from '../../utils/argParser.js';
 import { ValidationError } from '../../utils/errors.js';
-import { parseCommandArgs, parseYesBoolean } from '../../utils/argParser.js';
-import { sanitizeUserText } from '../../security/sanitizer.js';
+
+const CHANNEL_SLOT_MAP = {
+  welcome: 'channels.welcomeChannelId',
+  verify: 'channels.verifyChannelId',
+  modlog: 'channels.modLogChannelId',
+  memberlog: 'channels.memberLogChannelId',
+  ticketlog: 'channels.ticketLogChannelId',
+  applog: 'channels.modAppLogChannelId',
+  rplog: 'channels.rpLogChannelId',
+  levellog: 'channels.levelUpChannelId',
+  alert: 'channels.alertChannelId',
+  transcript: 'channels.transcriptChannelId',
+  ticketcategory: 'channels.ticketCategoryId',
+};
 
 export const configCommand = {
   name: 'config',
-  description: 'View or update server middleman roles, alert channels, auto-assign, and trade limits.',
-  usage:
-    '/config view | /config set-role tier=middleman|moderator|admin|support roles=roleId1,roleId2 | /config set-channel key=alertChannelId|auditLogChannelId|ticketCategoryId value=<id> | /config autoassign enabled=yes|no',
-  category: 'staff',
+  description: 'View or configure MurderMystery2 roles, log channels, verification, apps, and Auto-Mod.',
+  usage: '/config <view|role|channel|verify|apps|automod|levelrole|selfrole> ...',
+  category: 'admin',
   staffOnly: true,
   requiredRole: 'admin',
 
   async execute(ctx) {
-    const { positional, kv } = parseCommandArgs(ctx.event.args || '');
-    const sub = (positional[0] || kv.action || 'view').toLowerCase();
     const serverId = ctx.event.server_id;
+    const { positional, kv } = parseCommandArgs(ctx.event.args || '');
+    const sub = (positional[0] || 'view').toLowerCase();
+    const cfg = await ctx.repositories.serverConfigs.getOrCreate(serverId);
 
     if (sub === 'view') {
-      const cfg = await ctx.repositories.serverConfigs.getOrCreate(serverId);
       const embed = new EmbedBuilder()
-        .setTitle('⚙️ Server Middleman Configuration')
-        .setColor(EMBED_COLORS.INFO)
-        .addField('Middleman Roles', (cfg.staffRoles?.middlemanRoleIds || []).join(', ') || 'None configured', true)
-        .addField('Moderator Roles', (cfg.staffRoles?.moderatorRoleIds || []).join(', ') || 'None configured', true)
-        .addField('Admin Roles', (cfg.staffRoles?.adminRoleIds || []).join(', ') || 'None configured', true)
-        .addField('Staff Alerts Channel', cfg.channels?.alertChannelId || 'Unset', true)
-        .addField('Ticket Category', cfg.channels?.ticketCategoryId || 'Unset', true)
-        .addField('Auto-Assign Enabled', cfg.tradeLimits?.autoAssignMiddleman ? 'Yes' : 'No', true);
-
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, { embeds: [embed], replyTo: ctx.event.id });
+        .setTitle(`⚙️ ${cfg.serverName || BOT_BRAND.serverName} • Server Configuration`)
+        .setColor(EMBED_COLORS.SHERIFF)
+        .addField(
+          'Staff Roles',
+          `Admins: \`${cfg.staffRoles.adminRoleIds.join(', ') || 'none'}\`\n` +
+            `Mods: \`${cfg.staffRoles.moderatorRoleIds.join(', ') || 'none'}\`\n` +
+            `Trial Mods: \`${cfg.staffRoles.trialModRoleIds.join(', ') || 'none'}\`\n` +
+            `Support: \`${cfg.staffRoles.supportRoleIds.join(', ') || 'none'}\``,
+          false,
+        )
+        .addField(
+          'Citizen & Mute Roles',
+          `Verified: \`${cfg.roles.verifiedRoleId || 'none'}\` • Unverified: \`${cfg.roles.unverifiedRoleId || 'none'}\` • Muted: \`${cfg.roles.mutedRoleId || 'none'}\``,
+          false,
+        )
+        .addField(
+          'Log & Operational Channels',
+          `ModLog: \`${cfg.channels.modLogChannelId || '-'}\` • AppLog: \`${cfg.channels.modAppLogChannelId || '-'}\`\n` +
+            `TicketLog: \`${cfg.channels.ticketLogChannelId || '-'}\` • Welcome: \`${cfg.channels.welcomeChannelId || '-'}\`\n` +
+            `RPLog: \`${cfg.channels.rpLogChannelId || '-'}\` • TicketCat: \`${cfg.channels.ticketCategoryId || '-'}\``,
+          false,
+        )
+        .addField(
+          'Systems State',
+          `Verification: \`${cfg.verification.mode}\` • Mod Apps: \`${cfg.applications.open ? 'OPEN' : 'CLOSED'}\` (Min Lv.${cfg.applications.minLevel}) • Auto-Mod: \`${cfg.autoMod.enabled ? 'ON' : 'OFF'}\``,
+          false,
+        )
+        .setFooter(BOT_BRAND.footer);
+      await ctx.reply({ embeds: [embed] });
       return;
     }
 
-    if (sub === 'set-role') {
-      const tier = (kv.tier || '').toLowerCase();
-      const roleIds = (kv.roles || '')
-        .split(',')
-        .map((s) => sanitizeUserText(s, { maxLength: 64, fieldName: 'roleId' }))
-        .filter(Boolean);
-      const fieldMap = {
-        middleman: 'staffRoles.middlemanRoleIds',
-        moderator: 'staffRoles.moderatorRoleIds',
-        admin: 'staffRoles.adminRoleIds',
-        support: 'staffRoles.supportRoleIds',
-      };
-      const field = fieldMap[tier];
-      if (!field) throw new ValidationError('`tier` must be `middleman`, `moderator`, `support`, or `admin`.');
-
-      await ctx.repositories.serverConfigs.updateConfig(serverId, { [field]: roleIds });
-      await ctx.services.audit.record({
-        serverId,
-        action: 'SERVER_CONFIG_UPDATED',
-        actorId: ctx.event.author_id,
-        actorType: 'STAFF',
-        targetType: 'SERVER_CONFIG',
-        targetId: serverId,
-        correlationId: ctx.correlationId,
-        afterState: { [field]: roleIds },
-      });
-
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `✅ Updated \`${field}\` to: ${roleIds.length ? roleIds.map((r) => `\`${r}\``).join(', ') : '(empty)'}.`,
-        replyTo: ctx.event.id,
-      });
-      return;
-    }
-
-    if (sub === 'set-channel') {
-      const allowedKeys = [
-        'auditLogChannelId',
-        'alertChannelId',
-        'tradeRequestsChannelId',
-        'ticketCategoryId',
-        'tradeCategoryId',
-      ];
-      const key = kv.key;
-      if (!allowedKeys.includes(key)) {
-        throw new ValidationError(`\`key\` must be one of: ${allowedKeys.join(', ')}`);
+    if (sub === 'role') {
+      const slot = (positional[1] || '').toLowerCase();
+      const roleId = String(positional[2] || '').replace(/[<@&#>]/g, '');
+      if (!slot || !roleId) {
+        throw new ValidationError(
+          'Usage: `/config role <admin|mod|trialmod|support|verified|unverified|muted> <roleId>`',
+        );
       }
-      const value =
-        kv.value && kv.value !== 'none'
-          ? sanitizeUserText(kv.value, { maxLength: 64, fieldName: 'channelId' })
-          : null;
-      await ctx.repositories.serverConfigs.updateConfig(serverId, { [`channels.${key}`]: value });
-      await ctx.services.audit.record({
+
+      const setPatch = {};
+      if (slot === 'admin') {
+        setPatch['staffRoles.adminRoleIds'] = [...new Set([...cfg.staffRoles.adminRoleIds, roleId])];
+      } else if (slot === 'mod' || slot === 'moderator') {
+        setPatch['staffRoles.moderatorRoleIds'] = [
+          ...new Set([...cfg.staffRoles.moderatorRoleIds, roleId]),
+        ];
+      } else if (slot === 'trialmod') {
+        setPatch['staffRoles.trialModRoleIds'] = [
+          ...new Set([...cfg.staffRoles.trialModRoleIds, roleId]),
+        ];
+      } else if (slot === 'support') {
+        setPatch['staffRoles.supportRoleIds'] = [
+          ...new Set([...cfg.staffRoles.supportRoleIds, roleId]),
+        ];
+      } else if (slot === 'verified') {
+        setPatch['roles.verifiedRoleId'] = roleId;
+      } else if (slot === 'unverified') {
+        setPatch['roles.unverifiedRoleId'] = roleId;
+      } else if (slot === 'muted') {
+        setPatch['roles.mutedRoleId'] = roleId;
+      } else {
+        throw new ValidationError('Slot must be `admin|mod|trialmod|support|verified|unverified|muted`.');
+      }
+
+      await ctx.repositories.serverConfigs.updateConfig(serverId, setPatch);
+      await ctx.services.log.record({
         serverId,
-        action: 'SERVER_CONFIG_UPDATED',
         actorId: ctx.event.author_id,
         actorType: 'STAFF',
+        action: 'SERVER_CONFIG_ROLE_UPDATED',
         targetType: 'SERVER_CONFIG',
         targetId: serverId,
+        afterState: setPatch,
         correlationId: ctx.correlationId,
-        afterState: { [`channels.${key}`]: value },
       });
-
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `✅ Updated \`channels.${key}\` to \`${value || 'null'}\`.`,
-        replyTo: ctx.event.id,
-      });
+      await ctx.reply({ content: `✅ Configured **${slot}** role → \`${roleId}\`.` });
       return;
     }
 
-    if (sub === 'autoassign') {
-      const enabled = parseYesBoolean(kv.enabled);
+    if (sub === 'channel') {
+      const slot = (positional[1] || '').toLowerCase();
+      const rawCh = String(positional[2] || '').replace(/[<#>]/g, '');
+      const dotPath = CHANNEL_SLOT_MAP[slot];
+      if (!dotPath || !rawCh) {
+        throw new ValidationError(
+          `Usage: \`/config channel <${Object.keys(CHANNEL_SLOT_MAP).join('|')}> <channelId|none>\``,
+        );
+      }
+      const value = rawCh.toLowerCase() === 'none' ? null : rawCh;
+      await ctx.repositories.serverConfigs.updateConfig(serverId, { [dotPath]: value });
+      await ctx.reply({ content: `✅ Configured **${slot}** channel → \`${value || 'none'}\`.` });
+      return;
+    }
+
+    if (sub === 'verify') {
+      const mode = (kv.mode || positional[1] || '').toUpperCase();
+      if (!['INSTANT', 'CODE'].includes(mode)) {
+        throw new ValidationError('Usage: `/config verify <INSTANT|CODE>`');
+      }
       await ctx.repositories.serverConfigs.updateConfig(serverId, {
-        'tradeLimits.autoAssignMiddleman': enabled,
+        'verification.mode': mode,
       });
-      await ctx.services.audit.record({
-        serverId,
-        action: 'SERVER_CONFIG_UPDATED',
-        actorId: ctx.event.author_id,
-        actorType: 'STAFF',
-        targetType: 'SERVER_CONFIG',
-        targetId: serverId,
-        correlationId: ctx.correlationId,
-        afterState: { autoAssignMiddleman: enabled },
-      });
-      await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
-        content: `✅ Workload auto-assignment is now **${enabled ? 'ENABLED' : 'DISABLED'}**.`,
-        replyTo: ctx.event.id,
-      });
+      await ctx.reply({ content: `✅ Verification mode set to **${mode}**.` });
       return;
     }
 
-    throw new ValidationError('Unknown `/config` action. Use `view`, `set-role`, `set-channel`, or `autoassign`.');
+    if (sub === 'apps') {
+      const patch = {};
+      if (kv.open !== undefined || positional[1]) {
+        const val = kv.open !== undefined ? kv.open : positional[1];
+        patch['applications.open'] =
+          String(val).toLowerCase() === 'open' ? true : parseBooleanInput(val);
+      }
+      if (kv.minlevel !== undefined) {
+        patch['applications.minLevel'] = Math.max(1, Number(kv.minlevel) || 1);
+      }
+      await ctx.repositories.serverConfigs.updateConfig(serverId, patch);
+      await ctx.reply({ content: '✅ Sheriff Academy Application settings updated.' });
+      return;
+    }
+
+    if (sub === 'automod') {
+      const patch = {};
+      if (kv.enabled !== undefined) patch['autoMod.enabled'] = parseBooleanInput(kv.enabled);
+      if (kv.invites !== undefined) patch['autoMod.blockInviteLinks'] = parseBooleanInput(kv.invites);
+      if (kv.scams !== undefined) patch['autoMod.blockScamLinks'] = parseBooleanInput(kv.scams);
+      if (kv.threshold !== undefined) {
+        patch['autoMod.autoWarnThreshold'] = Math.max(2, Math.min(10, Number(kv.threshold) || 3));
+      }
+      if (kv.addword) {
+        patch['autoMod.blockedWords'] = [
+          ...new Set([...cfg.autoMod.blockedWords, String(kv.addword).toLowerCase()]),
+        ];
+      }
+      await ctx.repositories.serverConfigs.updateConfig(serverId, patch);
+      await ctx.reply({ content: '✅ MurderMystery2 Auto-Mod settings updated.' });
+      return;
+    }
+
+    if (sub === 'levelrole') {
+      const level = String(positional[1] || '');
+      const roleId = String(positional[2] || '').replace(/[<@&#>]/g, '');
+      if (!/^\d+$/.test(level) || !roleId) {
+        throw new ValidationError('Usage: `/config levelrole <levelNumber> <roleId>`');
+      }
+      const next = { ...cfg.roles.levelRewards, [level]: roleId };
+      await ctx.repositories.serverConfigs.updateConfig(serverId, {
+        'roles.levelRewards': next,
+      });
+      await ctx.reply({ content: `✅ Level **${level}** milestone role set to \`${roleId}\`.` });
+      return;
+    }
+
+    if (sub === 'selfrole') {
+      const key = String(positional[1] || '').toLowerCase();
+      const roleId = String(positional[2] || '').replace(/[<@&#>]/g, '');
+      if (!key || !roleId) {
+        throw new ValidationError('Usage: `/config selfrole <key e.g. rp-pings> <roleId|none>`');
+      }
+      const next = { ...cfg.roles.selfRoles };
+      if (roleId.toLowerCase() === 'none') delete next[key];
+      else next[key] = roleId;
+      await ctx.repositories.serverConfigs.updateConfig(serverId, {
+        'roles.selfRoles': next,
+      });
+      await ctx.reply({ content: `✅ Self-role **${key}** updated.` });
+      return;
+    }
+
+    throw new ValidationError(
+      'Subcommands: `/config view`, `/config role`, `/config channel`, `/config verify`, `/config apps`, `/config automod`, `/config levelrole`, `/config selfrole`.',
+    );
   },
 };

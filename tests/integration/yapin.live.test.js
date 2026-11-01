@@ -48,13 +48,13 @@ describe.skipIf(!LIVE_ENABLED)(
         // 4. Send, edit, and clean up a real test message in YAPIN_TEST_CHANNEL_ID
         const messagesApi = new YapinMessagesApi(client);
         const sent = await messagesApi.sendMessage(testChannelId, {
-          content: '[Integration Test] Yapin Middleman Bot connectivity probe',
+          content: '[Integration Test] MM2 Helper (MurderMystery2) connectivity probe',
           embeds: [new EmbedBuilder().setTitle('Live Probe').setDescription('Automated integration test')],
         });
         expect(sent.id).toBeTruthy();
 
         await messagesApi.editMessage(testChannelId, sent.id, {
-          content: '[Integration Test] Yapin Middleman Bot connectivity probe (edited)',
+          content: '[Integration Test] MM2 Helper (MurderMystery2) connectivity probe (edited)',
         });
         await messagesApi.deleteMessage(testChannelId, sent.id);
 

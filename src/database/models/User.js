@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MM2_ALIGNMENTS } from '../../config/settings.js';
 import {
   dateField,
   defaultedObject,
@@ -6,49 +7,70 @@ import {
   validateWithSchema,
 } from './schemaHelpers.js';
 
-const WarningSubSchema = z.object({
-  warningId: z.string().trim().min(1),
-  serverId: z.string().trim().min(1),
-  issuedBy: z.string().trim().min(1),
-  reason: z.string().trim().min(1).max(1000),
-  tradeId: z.string().nullable().default(null),
+const CharacterSubSchema = z.object({
+  characterId: z.string().min(1),
+  name: z.string().trim().min(1).max(60),
+  codename: z.string().trim().max(40).default(''),
+  alignment: z.enum(MM2_ALIGNMENTS).default('INNOCENT'),
+  weapon: z.string().trim().max(60).default('Flashlight'),
+  bio: z.string().trim().max(500).default('A mysterious resident of MurderMystery2.'),
   createdAt: dateField(true),
 });
 
 export const UserSchema = z.object({
   yapinUserId: z.string().trim().min(1).max(64),
   lastKnownUsername: z.string().trim().max(64).nullable().default(null),
-  tradeStats: defaultedObject({
-    created: z.number().min(0).default(0),
-    completed: z.number().min(0).default(0),
-    cancelled: z.number().min(0).default(0),
-    disputed: z.number().min(0).default(0),
-    rejected: z.number().min(0).default(0),
-    asMiddlemanClaimed: z.number().min(0).default(0),
-    asMiddlemanCompleted: z.number().min(0).default(0),
-    activeMiddlemanLoad: z.number().min(0).default(0),
+  joinedAt: nullableDateField(),
+
+  verification: defaultedObject({
+    verified: z.boolean().default(false),
+    verifiedAt: nullableDateField(),
+    verifiedBy: z.string().nullable().default(null),
+    pendingCode: z.string().nullable().default(null),
+    codeExpiresAt: nullableDateField(),
+    attempts: z.number().int().min(0).default(0),
   }),
-  staffAvailability: defaultedObject({
-    available: z.boolean().default(false),
-    note: z.string().max(200).default(''),
-    updatedAt: nullableDateField(),
+
+  leveling: defaultedObject({
+    xp: z.number().int().min(0).default(0),
+    level: z.number().int().min(1).default(1),
+    totalXp: z.number().int().min(0).default(0),
+    prestige: z.number().int().min(0).default(0),
+    messagesCount: z.number().int().min(0).default(0),
+    rpPostsCount: z.number().int().min(0).default(0),
+    coins: z.number().int().min(0).default(0),
+    dailyStreak: z.number().int().min(0).default(0),
+    lastDailyAt: nullableDateField(),
+    lastXpAt: nullableDateField(),
+    badges: z.array(z.string()).default([]),
   }),
-  warnings: z.array(WarningSubSchema).default([]),
-  suspension: defaultedObject({
-    active: z.boolean().default(false),
-    reason: z.string().max(1000).nullable().default(null),
-    suspendedBy: z.string().nullable().default(null),
-    suspendedAt: nullableDateField(),
-    expiresAt: nullableDateField(),
-    liftedBy: z.string().nullable().default(null),
-    liftedAt: nullableDateField(),
+
+  characters: z.array(CharacterSubSchema).default([]),
+  activeCharacterId: z.string().nullable().default(null),
+
+  moderation: defaultedObject({
+    activeWarnCount: z.number().int().min(0).default(0),
+    totalCases: z.number().int().min(0).default(0),
+    openReportsCount: z.number().int().min(0).default(0),
+    activeMute: defaultedObject({
+      active: z.boolean().default(false),
+      caseId: z.string().nullable().default(null),
+      reason: z.string().max(1000).nullable().default(null),
+      mutedBy: z.string().nullable().default(null),
+      mutedAt: nullableDateField(),
+      expiresAt: nullableDateField(),
+    }),
+    activeBan: defaultedObject({
+      active: z.boolean().default(false),
+      caseId: z.string().nullable().default(null),
+      reason: z.string().max(1000).nullable().default(null),
+      bannedBy: z.string().nullable().default(null),
+      bannedAt: nullableDateField(),
+      expiresAt: nullableDateField(),
+    }),
   }),
-  // Reports never auto-label a user a scammer; they track review counts & explicit staff restrictions only.
-  riskFlags: defaultedObject({
-    openReportsCount: z.number().min(0).default(0),
-    substantiatedReportsCount: z.number().min(0).default(0),
-    underStaffReview: z.boolean().default(false),
-  }),
+
+  lastApplicationAt: nullableDateField(),
   createdAt: dateField(true),
   updatedAt: dateField(true),
 });
