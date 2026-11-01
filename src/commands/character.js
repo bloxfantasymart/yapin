@@ -5,9 +5,9 @@ import { ValidationError } from '../utils/errors.js';
 
 export const characterCommand = {
   name: 'character',
-  description: 'Create, list, switch, or delete your MurderMystery2 Roleplay characters.',
+  description: 'Create and manage your MurderMystery2 character profiles.',
   usage: '/character <create|list|switch|delete> ...',
-  category: 'roleplay',
+  category: 'community',
   staffOnly: false,
 
   async execute(ctx) {
@@ -34,7 +34,7 @@ export const characterCommand = {
       });
 
       const embed = new EmbedBuilder()
-        .setTitle('🎭 MurderMystery2 RP Persona Registered!')
+        .setTitle('MURDERMYSTERY2 | CHARACTER REGISTERED')
         .setColor(EMBED_COLORS.MYSTERY)
         .addField('Character', `**${character.name}** (\`${character.characterId}\`)`, true)
         .addField('Alignment', `\`${character.alignment}\``, true)
@@ -55,12 +55,12 @@ export const characterCommand = {
       });
 
       const embed = new EmbedBuilder()
-        .setTitle('🎭 Your MurderMystery2 RP Roster')
+        .setTitle('MURDERMYSTERY2 | YOUR CHARACTERS')
         .setColor(EMBED_COLORS.MYSTERY)
         .setDescription(
           lines.length > 0
             ? lines.join('\n')
-            : `No RP characters yet! Create one:\n\`/character create Detective Vance | SHERIFF | Golden Luger | Veteran investigator\``,
+            : `No characters registered yet. Create your first character:\n\`/character create Detective Vance | SHERIFF | Golden Luger | Veteran investigator\``,
         )
         .setFooter(`Alignments: ${MM2_ALIGNMENTS.join(', ')} • ${BOT_BRAND.botName}`);
 
@@ -76,7 +76,7 @@ export const characterCommand = {
         characterIdOrName: target,
       });
       await ctx.reply({
-        content: `🎭 Switched active RP persona to **${character.name}** (\`${character.alignment}\` • 🗡️ ${character.weapon}).`,
+        content: `🎭 Active character changed to **${character.name}** (\`${character.alignment}\` • 🗡️ ${character.weapon}).`,
       });
       return;
     }
@@ -89,7 +89,7 @@ export const characterCommand = {
         characterIdOrName: target,
       });
       await ctx.reply({
-        content: `🗑️ Deleted RP persona **${removed.name}** (\`${removed.characterId}\`).`,
+        content: `🗑️ Deleted character **${removed.name}** (\`${removed.characterId}\`).`,
       });
       return;
     }

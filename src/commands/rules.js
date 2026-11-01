@@ -3,7 +3,7 @@ import { buildRulesEmbed } from '../utils/embeds.js';
 
 export const rulesCommand = {
   name: 'rules',
-  description: 'Read the official MurderMystery2 Roleplay & Community Rules.',
+  description: 'Read the MurderMystery2 community standards and server policies.',
   usage: '/rules',
   category: 'utility',
   staffOnly: false,

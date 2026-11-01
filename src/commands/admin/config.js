@@ -131,7 +131,7 @@ export const configCommand = {
 
     if (sub === 'rules') {
       if ((positional[1] || '').toLowerCase() !== 'reset') {
-        throw new ValidationError('Usage: `/config rules reset` restores the reviewed MM2 Roleplay rulebook.');
+        throw new ValidationError('Usage: `/config rules reset` restores the official MurderMystery2 community standards.');
       }
       await ctx.repositories.serverConfigs.updateConfig(serverId, { rulesText: DEFAULT_SERVER_RULES });
       await ctx.services.log.record({
@@ -143,7 +143,7 @@ export const configCommand = {
         targetId: serverId,
         correlationId: ctx.correlationId,
       });
-      await ctx.reply({ content: '✅ Official MurderMystery2 Roleplay rules restored. Review them with `/rules`.' });
+      await ctx.reply({ content: '✅ Official MurderMystery2 community standards restored. Review them with `/rules`.' });
       return;
     }
 
@@ -210,7 +210,7 @@ export const configCommand = {
       const key = String(positional[1] || '').toLowerCase();
       const roleId = String(positional[2] || '').replace(/[<@&#>]/g, '');
       if (!key || !roleId) {
-        throw new ValidationError('Usage: `/config selfrole <key e.g. rp-pings> <roleId|none>`');
+        throw new ValidationError('Usage: `/config selfrole <key e.g. events> <roleId|none>`');
       }
       const next = { ...cfg.roles.selfRoles };
       if (roleId.toLowerCase() === 'none') delete next[key];

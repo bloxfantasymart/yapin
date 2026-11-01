@@ -15,7 +15,7 @@ export function renderLoginPage({ errorMsg = null } = {}) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(BOT_BRAND.botName)} • ${escapeHtml(BOT_BRAND.serverName)} Sheriff HQ Login</title>
+  <title>${escapeHtml(BOT_BRAND.botName)} | ${escapeHtml(BOT_BRAND.serverName)} Staff Console</title>
   <style>
     :root { color-scheme: dark; }
     body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: radial-gradient(circle at top, #280a10, #0d1117 65%); color: #e6edf3; display: grid; place-items: center; min-height: 100vh; }
@@ -30,11 +30,11 @@ export function renderLoginPage({ errorMsg = null } = {}) {
 </head>
 <body>
   <main class="card">
-    <h1>🔪 ${escapeHtml(BOT_BRAND.botName)} • Sheriff HQ</h1>
-    <p>Sign in with your verified <strong>Yapin.gg</strong> account (<code>identify</code> OAuth2 + PKCE) to manage <strong>${escapeHtml(BOT_BRAND.serverName)}</strong> Applications, Support Tickets, Case Files, and Logs.</p>
+    <h1>${escapeHtml(BOT_BRAND.botName)} | Staff Console</h1>
+    <p>Sign in securely with your <strong>Yapin.gg</strong> account to access authorized <strong>${escapeHtml(BOT_BRAND.serverName)}</strong> staff tools.</p>
     ${errorMsg ? `<div class="err">${escapeHtml(errorMsg)}</div>` : ''}
-    <a class="btn" href="/auth/login">🔫 Login with Yapin'</a>
-    <div class="notice">Bot credentials remain strictly server-side. Every Sheriff action is recorded in the append-only audit log.</div>
+    <a class="btn" href="/auth/login">Continue with Yapin</a>
+    <div class="notice">Credentials remain server-side. Administrative actions are recorded in the append-only audit log.</div>
   </main>
 </body>
 </html>`;
@@ -48,7 +48,7 @@ export function renderStaffConsolePage(session) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="csrf-token" content="${escapeHtml(session.csrfToken)}" />
-  <title>${escapeHtml(BOT_BRAND.botName)} • ${escapeHtml(BOT_BRAND.serverName)} Sheriff HQ</title>
+  <title>${escapeHtml(BOT_BRAND.botName)} | ${escapeHtml(BOT_BRAND.serverName)} Staff Console</title>
   <style>
     :root { color-scheme: dark; }
     body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #0d1117; color: #e6edf3; }
@@ -59,7 +59,7 @@ export function renderStaffConsolePage(session) {
     .stat, section { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1rem 1.2rem; }
     .stat h3 { margin: 0; font-size: 0.78rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
     .stat strong { display: block; margin-top: 0.35rem; font-size: 1.6rem; }
-    h2 { margin: 0 0 0.75rem; font-size: 1.05rem; display: flex; justify-content: space-between; align-items: center; }
+    h2 { margin: 0 0 0.75rem; font-size: 0.92rem; letter-spacing: 0.06em; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 0.6rem; }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     th, td { text-align: left; padding: 0.55rem 0.5rem; border-bottom: 1px solid #21262d; vertical-align: middle; }
     th { color: #8b949e; font-weight: 600; }
@@ -78,12 +78,12 @@ export function renderStaffConsolePage(session) {
 <body>
   <header>
     <div>
-      <strong>🔪 ${escapeHtml(BOT_BRAND.botName)} • ${escapeHtml(BOT_BRAND.serverName)} Sheriff HQ</strong>
+      <strong>${escapeHtml(BOT_BRAND.botName)} | ${escapeHtml(BOT_BRAND.serverName)} Staff Console</strong>
       <span class="badge">Tier ${escapeHtml(session.staffTier)}</span>
       <span style="color:#8b949e;margin-left:0.5rem;">Server: <code>${escapeHtml(session.serverId)}</code></span>
     </div>
     <div style="display:flex;align-items:center;gap:0.65rem;">
-      <span>Officer <strong>${escapeHtml(session.username)}</strong> (<code>${escapeHtml(session.yapinUserId)}</code>)</span>
+      <span>Signed in as <strong>${escapeHtml(session.username)}</strong> (<code>${escapeHtml(session.yapinUserId)}</code>)</span>
       <button id="refreshAllBtn" type="button">Refresh</button>
       <button id="logoutBtn" type="button">Sign Out</button>
     </div>
@@ -93,14 +93,14 @@ export function renderStaffConsolePage(session) {
 
   <main>
     <div class="grid-stats">
-      <div class="stat"><h3>Verified Citizens</h3><strong id="stVerified">-</strong></div>
-      <div class="stat"><h3>Pending Mod Apps</h3><strong id="stApps">-</strong></div>
-      <div class="stat"><h3>Open Support Tickets</h3><strong id="stTickets">-</strong></div>
-      <div class="stat"><h3>Pending Rule Reports</h3><strong id="stReports">-</strong></div>
+      <div class="stat"><h3>VERIFIED MEMBERS</h3><strong id="stVerified">-</strong></div>
+      <div class="stat"><h3>PENDING APPLICATIONS</h3><strong id="stApps">-</strong></div>
+      <div class="stat"><h3>OPEN SUPPORT CASES</h3><strong id="stTickets">-</strong></div>
+      <div class="stat"><h3>PENDING REPORTS</h3><strong id="stReports">-</strong></div>
     </div>
 
     <section>
-      <h2>⭐ Sheriff Academy • Moderator Applications</h2>
+      <h2>STAFF APPLICATIONS | REVIEW QUEUE</h2>
       <table id="appsTable">
         <thead><tr><th>App ID</th><th>Applicant</th><th>Level</th><th>Status</th><th>Timezone / Hours</th><th>Why MM2</th><th>Admin Review</th></tr></thead>
         <tbody><tr><td colspan="7">Loading...</td></tr></tbody>
@@ -108,7 +108,7 @@ export function renderStaffConsolePage(session) {
     </section>
 
     <section>
-      <h2>🕵️ Detective Bureau • Open Support &amp; RP Tickets</h2>
+      <h2>SUPPORT CENTER | OPEN CASES</h2>
       <table id="ticketsTable">
         <thead><tr><th>Ticket ID</th><th>Category</th><th>Status</th><th>Creator</th><th>Assigned Officer</th><th>Subject</th><th>Actions</th></tr></thead>
         <tbody><tr><td colspan="7">Loading...</td></tr></tbody>
@@ -116,11 +116,11 @@ export function renderStaffConsolePage(session) {
     </section>
 
     <section>
-      <h2>⚖️ Sheriff Enforcement • Recent Case Files</h2>
+      <h2>CASE FILES | RECENT STAFF ACTIONS</h2>
       <div class="toolbar">
-        <input id="warnUserId" placeholder="Suspect Yapin UUID" />
+        <input id="warnUserId" placeholder="Member Yapin UUID" />
         <input id="warnReason" placeholder="Warning reason" style="min-width:240px;" />
-        <button id="issueWarnBtn" class="danger" type="button">Issue Official Warning</button>
+        <button id="issueWarnBtn" class="danger" type="button">Create Warning Case</button>
       </div>
       <table id="casesTable">
         <thead><tr><th>Case #</th><th>Case ID</th><th>Action</th><th>Suspect</th><th>Officer</th><th>Reason</th><th>Status</th></tr></thead>
@@ -129,7 +129,7 @@ export function renderStaffConsolePage(session) {
     </section>
 
     <section>
-      <h2>🏆 MurderMystery2 XP Leaderboard</h2>
+      <h2>LEVELS | LEADERBOARD</h2>
       <table id="leaderTable">
         <thead><tr><th>#</th><th>Citizen UUID</th><th>Username</th><th>Level &amp; Rank</th><th>Total XP</th></tr></thead>
         <tbody><tr><td colspan="5">Loading...</td></tr></tbody>
@@ -137,7 +137,7 @@ export function renderStaffConsolePage(session) {
     </section>
 
     <section>
-      <h2>📜 Append-Only Audit Trail</h2>
+      <h2>AUDIT LOG | APPEND-ONLY</h2>
       <div class="toolbar">
         <input id="auditAction" placeholder="Action (e.g. MEMBER_VERIFIED)" />
         <input id="auditActor" placeholder="Actor UUID" />
@@ -153,7 +153,7 @@ export function renderStaffConsolePage(session) {
     ${
       isAdmin
         ? `<section id="configSection">
-      <h2>⚙️ High Sheriff Server Configuration</h2>
+      <h2>SERVER CONFIGURATION</h2>
       <div class="form-grid">
         <div class="box">
           <h4>Staff Roles (comma-separated IDs)</h4>
@@ -270,7 +270,7 @@ export function renderStaffConsolePage(session) {
         : data.items.map((a) =>
             '<tr><td>' + esc(a.timestamp) + '</td><td><code>' + esc(a.auditId) + '</code></td><td><code>' +
             esc(a.action) + '</code></td><td><code>' + esc(a.actorId) + '</code></td><td><code>' +
-            esc(a.targetType + ':' + a.targetId) + '</code></td></tr>'
+            esc((a.targetType === 'ROLEPLAY' ? 'COMMUNITY' : a.targetType) + ':' + a.targetId) + '</code></td></tr>'
           ).join('');
     }
 

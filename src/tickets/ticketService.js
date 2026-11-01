@@ -13,7 +13,7 @@ import {
 import { generateEntityId, generateTicketId, userMention } from '../utils/ids.js';
 
 /**
- * Fail-Closed Private Support & Roleplay Ticket Desk for **MM2 Helper** (`MurderMystery2`).
+ * Fail-Closed Private Support Case Desk for **MM2 Helper** (`MurderMystery2`).
  */
 export class TicketService {
   constructor({

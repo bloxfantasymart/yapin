@@ -85,7 +85,7 @@ export class InteractionHandler {
           await this.messagesApi.respondToInteraction(interaction, 'ephemeral', {
             content:
               `🛡️ **Sheriff Checkpoint Guide:**\n` +
-              `1. Click **Verify at Checkpoint** in the official Sheriff Checkpoint panel.\n` +
+              `1. Click **Verify Account** in the official Sheriff Checkpoint panel.\n` +
               `2. If passcode mode is active, the button privately shows your short-lived code.\n` +
               `3. Need help? Open a ticket with \`/ticket open\`.`,
           });
@@ -141,7 +141,7 @@ export class InteractionHandler {
         }
       }
 
-      // 2. Detective Support & RP Ticket Buttons
+      // 2. Detective Support & Case Buttons
       if (domain === 'ticket') {
         if (action === 'open') {
           const category = target || 'GENERAL_SUPPORT';
@@ -200,7 +200,7 @@ export class InteractionHandler {
             content:
               `⭐ **Apply for MurderMystery2 Trial Sheriff:**\n` +
               `Copy & fill out:\n` +
-              `\`/apply 18 | EST | 3h/day | Prior RP Mod experience | Why you want to help MM2 | How you handle RDM/FailRP\``,
+              `\`/apply 18 | EST | 3h/day | Prior community staff experience | Why you want to help | How you review a report fairly\``,
           });
           return true;
         }
@@ -290,7 +290,7 @@ export class InteractionHandler {
             MURDERER: {
               title: '🔪 YOU ARE THE MURDERER!',
               color: EMBED_COLORS.MURDERER,
-              desc: `Eliminate suspects in **${round.map.name}** through stealthy roleplay without exposing yourself to the Sheriff!`,
+              desc: `Eliminate suspects in **${round.map.name}** without revealing your identity to the Sheriff to the Sheriff!`,
             },
             SHERIFF: {
               title: '🔫 YOU ARE THE SHERIFF!',
@@ -317,7 +317,7 @@ export class InteractionHandler {
         }
       }
 
-      // 5. RP Self-Roles Toggle Buttons (`mm2:selfrole:<key>`)
+      // 5. Member Notification Buttons (`mm2:selfrole:<key>`)
       if (domain === 'selfrole') {
         const key = parts.slice(2).join(':');
         const res = await this.services.roleplay.toggleSelfRole({

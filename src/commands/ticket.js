@@ -5,7 +5,7 @@ import { extractYapinUserId } from '../utils/ids.js';
 
 export const ticketCommand = {
   name: 'ticket',
-  description: 'Open or manage private MurderMystery2 Support & RP Tickets.',
+  description: 'Open or manage private MurderMystery2 support and character tickets.',
   usage: '/ticket <open|view|claim|assign|note|close|reopen> ...',
   category: 'tickets',
   staffOnly: false,

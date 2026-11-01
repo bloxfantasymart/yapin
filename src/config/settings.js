@@ -1,5 +1,5 @@
 /**
- * Verified Yapin.gg platform limits, permission flags, and MurderMystery2 Roleplay settings
+ * Verified Yapin.gg platform limits, permission flags, and MurderMystery2 community settings
  * for **MM2 Helper** (Server: **MurderMystery2**).
  * Source: https://www.yapin.gg/developers (https://www.yapper.website/developers)
  */
@@ -8,9 +8,9 @@ export const BOT_BRAND = Object.freeze({
   name: 'MM2 Helper',
   botName: 'MM2 Helper',
   serverName: 'MurderMystery2',
-  statusText: '/verify • MurderMystery2 Roleplay',
-  tagline: 'Official MurderMystery2 Roleplay • Sheriff HQ, Cases, Tickets, Verification & Ranks',
-  footer: 'MurderMystery2 Roleplay • Powered by MM2 Helper',
+  statusText: '/verify • MurderMystery2',
+  tagline: 'MM2 Helper • Verification, Support, Cases & Community',
+  footer: 'MurderMystery2 • MM2 Helper',
 });
 
 export const YAPIN_LIMITS = Object.freeze({
@@ -82,7 +82,7 @@ export const ALLOWED_MEDIA_HOSTS = Object.freeze([
   'cdn.weeb.sh',
 ]);
 
-// MurderMystery2 Roleplay Color Palette
+// MurderMystery2 visual palette
 export const EMBED_COLORS = Object.freeze({
   PRIMARY: 0xdc2626, // MM2 Crimson
   CRIMSON: 0xdc2626,
@@ -145,40 +145,40 @@ export function resolveRankForLevel(level = 1) {
 }
 
 export const DEFAULT_SERVER_RULES = [
-  '**MURDERMYSTERY2 ROLEPLAY — COMMUNITY RULEBOOK**',
-  '_Sheriff HQ • Case File Rules • Effective for every member, including staff._',
+  '**MURDERMYSTERY2 — COMMUNITY STANDARDS**',
+  '_Member conduct, character scenes, and staff procedures._',
   '',
-  '**1. Respect people; keep conflict in character.** No slurs, hate speech, threats, targeted harassment, doxxing, sexual harassment, or repeated unwanted contact. Stop when asked. Real-life safety concerns go to platform staff, not public chat.',
+  '**1. Treat members with respect.** No hate speech, threats, harassment, doxxing, sexual harassment, or repeated unwanted contact. Stop when asked. Keep personal disputes out of public channels.',
   '',
-  '**2. Keep IC and OOC separate.** Mark out-of-character chat clearly (for example, `OOC:`). Do not use private messages, streams, profiles, or information learned outside the scene to influence an in-character decision (metagaming).',
+  '**2. Keep character actions separate from outside information.** Do not use private messages, streams, profiles, or information learned outside a scene to influence what your character knows or does. Mark out-of-character discussion clearly.',
   '',
-  '**3. Give every scene a fair chance.** No powergaming: do not decide another character’s actions, injuries, thoughts, or outcome for them. Describe what your character attempts and allow others to respond. Use `/rp roll` when participants cannot agree on a fair chance-based outcome.',
+  '**3. Make scenes collaborative.** Describe what your character attempts; do not decide another person’s actions, thoughts, injuries, or outcome. Give others a reasonable chance to respond. Use `/rp roll` when participants cannot agree on a fair outcome.',
   '',
-  '**4. No random kills, arrests, or forced outcomes.** An attack, accusation, arrest, or detention needs a clear in-character reason and reasonable scene buildup. Do not repeatedly target the same player, force a result, or treat a game round result as permission to harass someone.',
+  '**4. No random attacks or forced outcomes.** An attack, accusation, arrest, or detention needs a clear in-character reason and reasonable buildup. Do not repeatedly target someone or use a game-round result to justify harassment.',
   '',
-  '**5. Play your character honestly.** No godmodding, impossible abilities, instant travel, unexplained knowledge, or changing character identity to evade consequences. Keep characters and scenes appropriate to the server and the agreed setting.',
+  '**5. Keep characters consistent and appropriate.** No impossible abilities, instant travel, unexplained knowledge, or changing identity to evade consequences. Respect the agreed setting and other members’ boundaries.',
   '',
-  '**6. Sheriff, Detective, and staff roles are not immunity.** Follow reasonable scene and server directions. Staff must explain consequential actions, stay within their assigned authority, and may not use staff access to win RP, settle personal disputes, or disclose private reports.',
+  '**6. Staff authority has limits.** Follow reasonable server directions. Staff must act within their assigned permissions, explain consequential decisions, avoid personal conflicts of interest, and protect private reports.',
   '',
-  '**7. Protect accounts and private information.** No impersonating members or staff, fake evidence, phishing, scam/invite spam, malicious links, or sharing anyone’s private information. Never post passwords, tokens, or private ticket contents.',
+  '**7. Protect accounts and personal information.** No impersonation, fabricated evidence, phishing, scam or invite spam, malicious links, or disclosure of private information. Never post passwords, tokens, or private ticket contents.',
   '',
-  '**8. Use the right channel and keep it readable.** Keep RP in RP spaces, support in tickets, and reports out of public arguments. No spam, flooding, mention abuse, disruptive formatting, or evading moderation with alternate accounts.',
+  '**8. Keep channels usable.** Use the right channel; no spam, flooding, mention abuse, disruptive formatting, or restriction evasion with alternate accounts.',
   '',
-  '**9. Reports are leads, not verdicts.** Submit a concise, truthful report with relevant context through `/report` or a private ticket. Do not organize pile-ons or publish accusations/evidence. Staff review both sides; a report alone does not establish guilt.',
+  '**9. Reports are leads, not verdicts.** Submit a truthful report with relevant context through `/report` or a private ticket. Do not organize pile-ons or publish accusations. Staff review context and all available accounts; a report alone is not proof.',
   '',
-  '**10. Moderation and appeals.** Staff may remove harmful content and apply proportionate action based on context, evidence, and prior history. Do not evade an active restriction. If you disagree, appeal calmly through a private ticket; do not relitigate it in public.',
+  '**10. Moderation and appeals.** Staff may remove harmful content and apply proportionate action based on context, evidence, and prior history. Do not evade an active restriction. Appeal calmly through a private ticket.',
   '',
-  '**11. Follow platform rules and staff safety requests.** Yapin.gg rules apply everywhere. Staff may pause a scene or move discussion to a private ticket to protect members or review a case.',
+  '**11. Platform rules apply.** Yapin.gg rules apply throughout the server. Staff may pause a scene or move discussion to a private ticket to protect members or review a case.',
   '',
-  '**How to join:** read these rules, click the Sheriff Checkpoint verification button, then review `/help` and create a character with `/character create`. Ask questions in a support ticket.',
+  '**Getting started:** review these standards, complete verification using the button above, then use `/help` and `/character create`. Open a support ticket if you need assistance.',
 ].join('\n');
 
 export const DEFAULT_MOD_APP_QUESTIONS = Object.freeze([
   '1. Age / Maturity & Timezone',
   '2. Daily active hours on MurderMystery2',
-  '3. Past Moderation / Roleplay Staff Experience',
-  '4. Why do you want to join the MurderMystery2 Sheriff Staff Team?',
-  '5. Scenario: Two players accuse each other of RDM/FailRP during a Mansion scene — how do you handle it?',
+  '3. Past Moderation / Community Staff Experience',
+  '4. Why do you want to join the MurderMystery2 Staff Team?',
+  '5. Scenario: Two members give conflicting accounts of an unprovoked attack at the Mansion. How would you review it fairly?',
 ]);
 
 export const DEFAULT_COOLDOWNS = Object.freeze({

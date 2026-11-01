@@ -7,7 +7,7 @@ import { extractYapinUserId, userMention } from '../utils/ids.js';
 
 export const profileCommand = {
   name: 'profile',
-  description: 'View a MurderMystery2 Citizen & Roleplay Dossier.',
+  description: 'View a MurderMystery2 member profile, rank, verification, and character.',
   usage: '/profile [@user]',
   category: 'leveling',
   staffOnly: false,
@@ -37,40 +37,40 @@ export const profileCommand = {
       null;
 
     const embed = new EmbedBuilder()
-      .setTitle('🕵️ MurderMystery2 Citizen Dossier')
+      .setTitle('MURDERMYSTERY2 | MEMBER DOSSIER')
       .setDescription(`**Citizen:** ${userMention(targetId)} (\`${targetId}\`)`)
       .setColor(userDoc.moderation?.activeBan?.active ? EMBED_COLORS.DANGER : EMBED_COLORS.SHERIFF)
-      .addField('MM2 Rank', `${lvl.rankTitle || '🔪 New Suspect'} (Lv. **${lvl.level || 1}**)`, true)
-      .addField('XP Progress', `${lvl.xp || 0} / ${needed} XP (Total: ${lvl.totalXp || 0})`, true)
+      .addField('MM2 RANK', `${lvl.rankTitle || '🔪 New Suspect'} (Lv. **${lvl.level || 1}**)`, true)
+      .addField('XP PROGRESS', `${lvl.xp || 0} / ${needed} XP (Total: ${lvl.totalXp || 0})`, true)
       .addField(
-        'Checkpoint Status',
+        'VERIFICATION STATUS',
         userDoc.verification?.verified ? '✅ Verified Citizen' : '⏳ Unverified',
         true,
       )
       .addField(
-        'Active RP Persona',
+        'Active Character',
         activeChar
           ? `**${activeChar.name}** (\`${activeChar.alignment}\` • 🗡️ ${activeChar.weapon})`
           : '_None registered (`/character create`)_',
         false,
       )
       .addField(
-        'Earned Badges',
+        'BADGES',
         lvl.badges?.length ? lvl.badges.join(' • ') : '_No badges unlocked yet_',
         false,
       );
 
     if (access.roles.isStaff || targetId === ctx.event.author_id) {
       embed.addField(
-        'Active Warnings',
+        'ACTIVE WARNINGS',
         String(userDoc.moderation?.activeWarnCount || 0),
         true,
       );
     }
     if (access.roles.isStaff) {
-      embed.addField('Total Case Files', String(userDoc.moderation?.totalCases || 0), true);
+      embed.addField('TOTAL CASE FILES', String(userDoc.moderation?.totalCases || 0), true);
       embed.addField(
-        'Queued Reports',
+        'OPEN REPORTS',
         String(userDoc.moderation?.openReportsCount || 0),
         true,
       );

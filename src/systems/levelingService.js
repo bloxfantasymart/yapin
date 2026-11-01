@@ -49,7 +49,7 @@ export class LevelingService {
   }
 
   /**
-   * Processes an incoming server chat/RP message for XP & RP post tracking.
+   * Processes an incoming server messages for XP and character scene tracking.
    */
   async processChatMessage({ serverId, channelId, userId, username = null, content = '' }) {
     if (!serverId || !userId) return { awarded: false };

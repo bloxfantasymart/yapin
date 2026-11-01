@@ -3,7 +3,7 @@ import { BOT_BRAND, EMBED_COLORS, MM2_MAPS } from '../config/settings.js';
 
 export const serverInfoCommand = {
   name: 'serverinfo',
-  description: 'View live MurderMystery2 community, case file, and roleplay statistics.',
+  description: 'View MurderMystery2 server status, member access, support, and case statistics.',
   usage: '/serverinfo',
   category: 'utility',
   staffOnly: false,
@@ -23,18 +23,18 @@ export const serverInfoCommand = {
     ).length;
 
     const embed = new EmbedBuilder()
-      .setTitle(`🏰 ${cfg.serverName || BOT_BRAND.serverName} • Server Dossier`)
+      .setTitle(`MURDERMYSTERY2 | SERVER OVERVIEW`)
       .setColor(EMBED_COLORS.CRIMSON)
       .setDescription(
-        `Managed by **${BOT_BRAND.botName}** — Official Murder Mystery 2 Roleplay & Enforcement Suite.`,
+        `**${BOT_BRAND.botName}** provides verification, member support, staff tools, and server information.`,
       )
-      .addField('Verified Citizens', String(verifiedCount), true)
-      .addField('Mod Applications', cfg.applications.open ? '🟢 OPEN' : '🔴 CLOSED', true)
-      .addField('Pending Apps', String(appsPage.total), true)
-      .addField('Open Tickets', String(openTickets.total), true)
-      .addField('Recorded Case Files', String(casesPage.total), true)
-      .addField('Active Mystery Rounds', String(activeRounds), true)
-      .addField('Available RP Maps', MM2_MAPS.map((m) => `${m.emoji} ${m.name}`).join(' • '), false)
+      .addField('VERIFIED MEMBERS', String(verifiedCount), true)
+      .addField('APPLICATION STATUS', cfg.applications.open ? '🟢 OPEN' : '🔴 CLOSED', true)
+      .addField('PENDING APPLICATIONS', String(appsPage.total), true)
+      .addField('OPEN SUPPORT CASES', String(openTickets.total), true)
+      .addField('RECORDED CASE FILES', String(casesPage.total), true)
+      .addField('ACTIVE MYSTERY EVENTS', String(activeRounds), true)
+      .addField('AVAILABLE MAPS', MM2_MAPS.map((m) => `${m.emoji} ${m.name}`).join(' • '), false)
       .setFooter(BOT_BRAND.footer);
 
     await ctx.reply({ embeds: [embed] });

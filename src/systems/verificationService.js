@@ -285,7 +285,7 @@ export class VerificationService {
         .setTitle('🔪 A New Citizen Entered MurderMystery2!')
         .setColor(EMBED_COLORS.PRIMARY)
         .setDescription(
-          `${userMention(userId)} cleared the **Sheriff Checkpoint**! Create your RP persona with \`/character create\` and check \`/rules\` before entering a scene.`,
+          `${userMention(userId)} cleared the **Sheriff Checkpoint**! Create your character with \`/character create\` and check \`/rules\` before entering a scene.`,
         )
         .setFooter(BOT_BRAND.footer);
       await this.messagesApi

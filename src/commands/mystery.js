@@ -5,9 +5,9 @@ import { userMention } from '../utils/ids.js';
 
 export const mysteryCommand = {
   name: 'mystery',
-  description: 'Host a live MurderMystery2 RP Round with secret Murderer, Sheriff & Innocent roles.',
+  description: 'Host a MurderMystery2 mystery round with private Murderer, Sheriff, and Innocent assignments.',
   usage: '/mystery <start|join|draw|end> [Map or RND-ID]',
-  category: 'roleplay',
+  category: 'community',
   staffOnly: false,
 
   async execute(ctx) {

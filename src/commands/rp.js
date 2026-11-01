@@ -7,9 +7,9 @@ import { userMention } from '../utils/ids.js';
 
 export const rpCommand = {
   name: 'rp',
-  description: 'Perform MurderMystery2 in-character dialogue, crime scenes, clues, and dice rolls.',
+  description: 'Post character dialogue, open a map scene, record clues, or roll for an outcome.',
   usage: '/rp <say|scene|clue|roll|maps> ...',
-  category: 'roleplay',
+  category: 'community',
   staffOnly: false,
 
   async execute(ctx) {
@@ -18,7 +18,7 @@ export const rpCommand = {
 
     if (sub === 'maps' || sub === 'locations') {
       const embed = new EmbedBuilder()
-        .setTitle('🗺️ Official MurderMystery2 Roleplay Maps')
+        .setTitle('MURDERMYSTERY2 | LOCATIONS & MAPS')
         .setColor(EMBED_COLORS.MYSTERY)
         .setDescription(
           MM2_MAPS.map((m) => `${m.emoji} **${m.name}** (\`${m.id}\`) — *${m.vibe}*`).join('\n'),
@@ -60,7 +60,7 @@ export const rpCommand = {
         maxLength: 1200,
         fieldName: 'Dialogue',
       });
-      if (!dialogue) throw new ValidationError('Usage: `/rp say <in-character message>`');
+      if (!dialogue) throw new ValidationError('Usage: `/rp say <character dialogue>`');
       const embed = new EmbedBuilder()
         .setTitle(`🎭 ${speakerLabel}`)
         .setColor(EMBED_COLORS.MYSTERY)
@@ -89,11 +89,11 @@ export const rpCommand = {
         serverId: ctx.event.server_id,
         actorId: ctx.event.author_id,
         actorType: 'USER',
-        action: 'RP_SCENE_STARTED',
-        targetType: 'ROLEPLAY',
+        action: 'COMMUNITY_SCENE_STARTED',
+        targetType: 'COMMUNITY',
         targetId: map.id,
         metadata: { map: map.name },
-        stream: 'rp',
+        stream: 'community',
         embed,
       });
 
@@ -106,7 +106,7 @@ export const rpCommand = {
         maxLength: 800,
         fieldName: 'Clue',
       });
-      if (!clueText) throw new ValidationError('Usage: `/rp clue <forensic evidence left behind>`');
+      if (!clueText) throw new ValidationError('Usage: `/rp clue <evidence or clue description>`');
       const embed = new EmbedBuilder()
         .setTitle('🔎 Forensic Clue Discovered!')
         .setColor(EMBED_COLORS.GOLD)

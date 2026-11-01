@@ -17,7 +17,8 @@ export const AuditLogSchema = z.object({
     'TICKET',
     'APPLICATION',
     'REPORT',
-    'ROLEPLAY',
+    'COMMUNITY',
+    'ROLEPLAY', // retained for older audit records
     'CHANNEL',
     'SERVER_CONFIG',
     'SYSTEM',

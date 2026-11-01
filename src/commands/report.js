@@ -4,10 +4,19 @@ import { parseCommandArgs } from '../utils/argParser.js';
 import { ValidationError } from '../utils/errors.js';
 import { extractYapinUserId } from '../utils/ids.js';
 
+const CATEGORY_LABELS = {
+  RDM_FAILRP: 'Unprovoked attack or unfair conduct',
+  HARASSMENT: 'Harassment',
+  EXPLOITING: 'Suspected exploit',
+  SCAM_LINK: 'Scam or unsafe link',
+  SPAM: 'Spam',
+  OTHER: 'Other concern',
+};
+
 export const reportCommand = {
   name: 'report',
-  description: 'Privately report RDM, FailRP, harassment, or exploits to MurderMystery2 Staff.',
-  usage: '/report <@user> <RDM_FAILRP|HARASSMENT|EXPLOITING|SCAM_LINK|SPAM|OTHER> <details> [evidence=https://...]',
+  description: 'Submit a private report about harassment, unsafe links, disruptive conduct, or another server concern.',
+  usage: '/report <@member> <category> <details> [evidence=https://...]',
   category: 'moderation',
   staffOnly: false,
 
@@ -16,7 +25,7 @@ export const reportCommand = {
     const targetUserId = extractYapinUserId(kv.user || positional[0] || '');
     if (!targetUserId) {
       throw new ValidationError(
-        'Usage: `/report <@user> <RDM_FAILRP|HARASSMENT|EXPLOITING|SPAM|OTHER> <what happened>`',
+        'Usage: `/report <@member> <category> <what happened>`',
       );
     }
 
@@ -35,13 +44,13 @@ export const reportCommand = {
     });
 
     const embed = new EmbedBuilder()
-      .setTitle('🚨 Sheriff Dispatch • Report Filed')
+      .setTitle('MURDERMYSTERY2 | REPORT RECEIVED')
       .setColor(EMBED_COLORS.WARNING)
       .setDescription(
-        `Your report (\`${report.reportId}\`) has been routed privately to **MurderMystery2** Moderators for investigation.\n*Accused players are never automatically punished from unverified reports.*`,
+        `Your report has been received and sent to authorized staff for review. A report is not a finding of misconduct and does not automatically result in punishment.`,
       )
-      .addField('Report ID', `\`${report.reportId}\``, true)
-      .addField('Category', `\`${report.category}\``, true)
+      .addField('REPORT ID', `\`${report.reportId}\``, true)
+      .addField('CATEGORY', CATEGORY_LABELS[report.category] || 'Other concern', true)
       .setFooter(BOT_BRAND.footer);
 
     await ctx.reply({ embeds: [embed] });

@@ -20,5 +20,5 @@
 - Yapin closes WebSocket connections with `4003` when realtime gateway access is disabled on a bot profile. **MM2 Helper** automatically falls back to HTTPS Long-Polling (`GET /events?after=<seq>&wait=20`) with zero lost events.
 
 ### 5. Backing Up or Moving `./data` JSON Files
-- All **MurderMystery2** XP, ranks, RP characters, Case Files, Mod Applications, Tickets, and Audit Logs live inside `./data/*.json`.
+- All **MurderMystery2** XP, ranks, character profiles, Case Files, Mod Applications, Tickets, and Audit Logs live inside `./data/*.json`.
 - To back up or migrate servers, stop the bot cleanly (`Ctrl+C` or `pm2 stop mm2-helper-bot`) and copy the `./data` folder.

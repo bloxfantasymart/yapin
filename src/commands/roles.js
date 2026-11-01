@@ -3,9 +3,9 @@ import { buildSelfRolesEmbed, buildSelfRolesRows } from '../utils/embeds.js';
 
 export const rolesCommand = {
   name: 'roles',
-  description: 'View or toggle self-assignable MurderMystery2 RP notification roles.',
+  description: 'View or manage your MurderMystery2 notification roles.',
   usage: '/roles [toggle <roleKey>]',
-  category: 'roleplay',
+  category: 'community',
   staffOnly: false,
 
   async execute(ctx) {

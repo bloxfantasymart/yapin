@@ -9,7 +9,7 @@ import { logger } from '../../src/utils/logger.js';
 import { createInMemoryRepositories } from '../helpers/inMemoryRepositories.js';
 import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
 
-describe('MM2 Helper — Sheriff Moderation, Auto-Mod & MurderMystery2 Roleplay Suite', () => {
+describe('MM2 Helper — Sheriff Moderation, Auto-Mod & MurderMystery2 Character and Mystery Suite', () => {
   it('enforces Sheriff Case Files, auto-escalates warnings to timed Mute, sweeps expired mutes, filters Auto-Mod links, and never auto-bans on /report', async () => {
     const mock = createMockYapinFetch();
     const serverId = mock.defaultServerId;
@@ -127,7 +127,7 @@ describe('MM2 Helper — Sheriff Moderation, Auto-Mod & MurderMystery2 Roleplay 
     expect(banCase.action).toBe('BAN');
   });
 
-  it('runs MurderMystery2 RP Characters, Dice Rolls, Self-Roles, and Live Secret Mystery Rounds with private Ephemeral Role Reveal', async () => {
+  it('runs MurderMystery2 Character Profiles, Dice Rolls, Self-Roles, and Live Secret Mystery Rounds with private Ephemeral Role Reveal', async () => {
     const mock = createMockYapinFetch();
     const serverId = mock.defaultServerId;
     const p1 = '10000000-0000-4000-8000-000000000011';

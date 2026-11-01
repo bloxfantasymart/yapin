@@ -13,7 +13,7 @@ import { ValidationError } from '../../utils/errors.js';
 
 export const panelCommand = {
   name: 'panel',
-  description: 'Deploy interactive MurderMystery2 Verification, Ticket, Application, or Role panels.',
+  description: 'Deploy an interactive MurderMystery2 verification, support, application, or notification panel.',
   usage: '/panel <verify|tickets|applications|roles>',
   category: 'admin',
   staffOnly: true,

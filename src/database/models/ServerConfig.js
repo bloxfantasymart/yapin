@@ -46,7 +46,7 @@ export const ServerConfigSchema = z.object({
       .string()
       .max(1000)
       .default(
-        'Welcome to **MurderMystery2 Roleplay**! Step through the Sheriff Checkpoint and run `/verify` to enter the city.',
+        'Welcome to **MurderMystery2**. Complete verification at the Sheriff Checkpoint to access member channels.',
       ),
   }),
 

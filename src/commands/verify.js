@@ -21,7 +21,7 @@ export const verifyCommand = {
     // response. The text command is deliberately not allowed to issue a code in public chat.
     if (!code) {
       const channelHint = cfg.channels.verifyChannelId
-        ? `Open <#${cfg.channels.verifyChannelId}> and press **🛡️ Verify at Checkpoint**.`
+        ? `Open <#${cfg.channels.verifyChannelId}> and press **Verify Account**.`
         : 'Ask a server administrator to deploy the panel with `/panel verify`.';
       const embed = new EmbedBuilder()
         .setTitle('🛡️ Sheriff Checkpoint')
@@ -39,7 +39,7 @@ export const verifyCommand = {
 
     if (cfg.verification.mode !== 'code') {
       await ctx.reply({
-        content: 'This checkpoint uses one-click button verification. Open the official panel and press **🛡️ Verify at Checkpoint**.',
+        content: 'This checkpoint uses one-click button verification. Open the official panel and press **Verify Account**.',
       });
       return;
     }

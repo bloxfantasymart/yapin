@@ -6,7 +6,7 @@ import { ValidationError } from '../utils/errors.js';
 export const applyCommand = {
   name: 'apply',
   description: 'Submit an official MurderMystery2 Trial Sheriff (Moderator) Application.',
-  usage: '/apply <Age> | <Timezone> | <Daily Hours> | <Experience> | <Why You> | <RDM Scenario>',
+  usage: '/apply <Age> | <Timezone> | <Daily Hours> | <Experience> | <Why You> | <Incident Review Scenario>',
   category: 'applications',
   staffOnly: false,
 
@@ -27,7 +27,7 @@ export const applyCommand = {
     if (!answers.age || !answers.timezone || !answers.hours || !answers.experience || !answers.reason || !answers.scenario) {
       throw new ValidationError(
         'Please complete all 6 fields separated by `|`:\n' +
-          '`/apply 18 | EST (UTC-5) | 3-4h/day | Modded 2 RP servers | Love MM2 RP | Warn & investigate evidence first`',
+          '`/apply 18 | EST (UTC-5) | 3-4h/day | Moderated two online communities | Why you want to serve this community | Review context and evidence before acting`',
       );
     }
 
@@ -40,10 +40,10 @@ export const applyCommand = {
     });
 
     const embed = new EmbedBuilder()
-      .setTitle('⭐ Sheriff Academy Application Submitted!')
+      .setTitle('⭐ Staff Application Received')
       .setColor(EMBED_COLORS.GOLD)
       .setDescription(
-        `Your Trial Moderator application (\`${created.applicationId}\`) has been filed for High Sheriff review.`,
+        `Your Trial Moderator application (\`${created.applicationId}\`) has been submitted for staff review.`,
       )
       .addField('Application ID', `\`${created.applicationId}\``, true)
       .addField('Status', '`PENDING`', true)

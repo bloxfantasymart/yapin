@@ -19,7 +19,7 @@ import { sanitizeErrorMessage } from './utils/errors.js';
 import { createLogger } from './utils/logger.js';
 
 /**
- * Bootstraps and runs **MM2 Helper** for the **MurderMystery2** Roleplay Server on Yapin.gg,
+ * Bootstraps and runs **MM2 Helper** for the **MurderMystery2** server on Yapin.gg,
  * backed by crash-safe local atomic JSON storage (`./data/*.json`).
  */
 export async function startApplication(rawEnv = process.env, options = {}) {

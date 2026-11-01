@@ -50,7 +50,7 @@ export const STAFF_TIERS = Object.freeze({
  * 2. Resolves real server owner (`server.owner_id`), server roles (`GET /servers/:id/roles`),
  *    and member role assignments (`GET /servers/:id/members/:uid`) directly from Yapin's API.
  * 3. Supports verified Yapin role assignment (`PUT / DELETE /servers/:id/members/:uid/roles/:rid`)
- *    for Verification, Level Ranks, RP Roles, Mutes, and Trial Mod promotions.
+ *    for Verification, Level Ranks, member notification roles, Mutes, and Trial Mod promotions.
  */
 export class YapinPermissionsApi {
   /**

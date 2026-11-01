@@ -1,7 +1,7 @@
 /**
  * Routes Yapin `message` events through:
  * 1. Slash command execution (`CommandHandler`) if `event.command` is present
- * 2. Smart Auto-Moderation (`AutoModService`) for regular chat/RP messages
+ * 2. Smart Auto-Moderation (`AutoModService`) for regular member messages
  * 3. MurderMystery2 Leveling & XP engine (`LevelingService`) if message is clean
  */
 export function createMessageCreateListener({ commandHandler, services = null }) {

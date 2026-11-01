@@ -8,11 +8,11 @@ import {
 } from '../utils/ids.js';
 
 /**
- * MurderMystery2 Roleplay Suite:
+ * MurderMystery2 Community Features:
  * - Character Registry (`create`, `switch`, `delete`, `list`)
  * - In-Character Scenes, Clues & Fair Dice Rolls (`1d20`, `2d6`, etc.)
  * - Live Secret MM2 Mystery Rounds (1 Murderer, 1 Sheriff, Innocents — private ephemeral reveal!)
- * - RP Self-Roles Toggle
+ * - Member Notification Roles
  */
 export class RoleplayService {
   constructor({
@@ -78,13 +78,16 @@ export class RoleplayService {
       (draft) => {
         if (draft.characters.length >= 5) {
           throw new ValidationError(
-            'You can store up to 5 RP characters. Delete an old character first with `/character delete`.',
+            'You can store up to 5 characters. Delete an old character first with `/character delete`.',
           );
         }
         draft.characters.push(character);
         draft.activeCharacterId = character.characterId;
-        if (!draft.leveling.badges.includes('🎭 Roleplayer')) {
-          draft.leveling.badges.push('🎭 Roleplayer');
+        draft.leveling.badges = draft.leveling.badges.map((badge) =>
+          badge === '🎭 Roleplayer' ? '🎭 Character Creator' : badge,
+        );
+        if (!draft.leveling.badges.includes('🎭 Character Creator')) {
+          draft.leveling.badges.push('🎭 Character Creator');
         }
       },
       username,
@@ -95,7 +98,7 @@ export class RoleplayService {
       actorId: userId,
       actorType: 'USER',
       action: 'RP_CHARACTER_CREATED',
-      targetType: 'ROLEPLAY',
+      targetType: 'COMMUNITY',
       targetId: character.characterId,
       afterState: { name: character.name, alignment: character.alignment },
       stream: 'rp',
@@ -114,7 +117,7 @@ export class RoleplayService {
           c.characterId.toLowerCase() === query || c.name.toLowerCase().includes(query),
       );
       if (!hit) {
-        throw new NotFoundError(`No RP character matching \`${characterIdOrName}\` found on your profile.`);
+        throw new NotFoundError(`No character matching \`${characterIdOrName}\` found on your profile.`);
       }
       draft.activeCharacterId = hit.characterId;
       chosen = hit;
@@ -265,7 +268,7 @@ export class RoleplayService {
   }
 
   /**
-   * Toggles a configured MurderMystery2 RP Self-Role (`mm2:selfrole:<key>` or `/roles toggle`).
+   * Toggles a configured MurderMystery2 member notification role (`mm2:selfrole:<key>` or `/roles toggle`).
    */
   async toggleSelfRole({ serverId, userId, roleKey }) {
     const cfg = await this.serverConfigRepo.getOrCreate(serverId);

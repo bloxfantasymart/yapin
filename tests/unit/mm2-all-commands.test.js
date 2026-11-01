@@ -12,7 +12,7 @@ import { createInMemoryRepositories } from '../helpers/inMemoryRepositories.js';
 import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
 
 describe('MM2 Helper — End-to-End Slash Command Execution Across All 36 Commands', () => {
-  it('executes community, leveling, roleplay, ticket, mod application, moderation, and admin commands end-to-end', async () => {
+  it('executes community, leveling, character, ticket, staff application, moderation, and admin commands end-to-end', async () => {
     const mock = createMockYapinFetch();
     const serverId = mock.defaultServerId;
     const adminId = '88888888-8888-4888-8888-888888888888';
@@ -139,17 +139,17 @@ describe('MM2 Helper — End-to-End Slash Command Execution Across All 36 Comman
     expect(mock.state.members.get(`${serverId}:${userA}`).roles).toContain('role-verified');
 
     const rulebook = await runCmd(userA, 'rules');
-    expect(rulebook.embeds[0].title).toContain('MurderMystery2');
+    expect(rulebook.embeds[0].title).toContain('COMMUNITY STANDARDS');
     expect(rulebook.embeds[0].description).toContain('Reports are leads, not verdicts');
-    expect(rulebook.embeds[0].description).toContain('metagaming');
+    expect(rulebook.embeds[0].description).toContain('outside information');
     expect((await runCmd(userA, 'help')).embeds[0].title).toContain('MM2 Helper');
-    expect((await runCmd(userA, 'serverinfo')).embeds[0].title).toContain('MurderMystery2');
+    expect((await runCmd(userA, 'serverinfo')).embeds[0].title).toContain('SERVER OVERVIEW');
     expect((await runCmd(userA, 'daily')).embeds[0].title).toContain('Crate');
-    expect((await runCmd(userA, 'rank')).embeds[0].title).toContain('MurderMystery2');
-    expect((await runCmd(userA, 'profile')).embeds[0].title).toContain('Dossier');
+    expect((await runCmd(userA, 'rank')).embeds[0].title).toContain('MURDERMYSTERY2');
+    expect((await runCmd(userA, 'profile')).embeds[0].title).toContain('DOSSIER');
     expect((await runCmd(userA, 'leaderboard')).embeds[0].title).toContain('Leaderboard');
 
-    // 3. Roleplay commands: /character, /rp, /roles, /mystery
+    // 3. Character and mystery commands: /character, /rp, /roles, /mystery
     await runCmd(
       userA,
       'character',
@@ -207,7 +207,7 @@ describe('MM2 Helper — End-to-End Slash Command Execution Across All 36 Comman
       'report',
       `<@${userC}> RDM_FAILRP Attacked in spawn with zero motive`,
     );
-    expect(repMsg.embeds[0].title).toContain('Report Filed');
+    expect(repMsg.embeds[0].title).toContain('REPORT RECEIVED');
 
     // 5. Staff Moderation commands: /warn, /warnings, /case, /modlogs, /clearwarn, /mute, /unmute, /kick, /ban, /unban, /slowmode, /lock, /unlock, /purge, /verifyuser
     const warnMsg = await runCmd(modId, 'warn', `<@${userC}> RDM in Hotel elevator`);
