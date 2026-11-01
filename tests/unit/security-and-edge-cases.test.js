@@ -23,14 +23,12 @@ describe('Stage 6 — Security Hardening, Event Parsing, Sanitization, Cooldowns
     expect(() =>
       loadEnv({
         YAPIN_BOT_TOKEN: 'invalid_not_yb_prefix',
-        MONGODB_URI: 'mongodb://127.0.0.1:27017/mm',
         YAPIN_SERVER_ID: 'srv_1',
       }),
     ).toThrow(/yb_/);
     expect(() =>
       loadEnv({
         YAPIN_BOT_TOKEN: 'yb_valid_token_123456',
-        MONGODB_URI: 'mongodb://127.0.0.1:27017/mm',
         YAPIN_SERVER_ID: 'srv_1',
         DASHBOARD_ENABLED: 'true',
         DASHBOARD_SESSION_SECRET: 'too_short',

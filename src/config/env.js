@@ -36,17 +36,16 @@ export const EnvSchema = z
       .url('YAPIN_API_BASE_URL must be a valid HTTP/HTTPS URL')
       .default('https://www.yapin.gg/api/bot/v1')
       .transform((u) => u.replace(/\/+$/, '')),
-    MONGODB_URI: z
-      .string()
-      .trim()
-      .min(10, 'MONGODB_URI is required')
-      .refine((u) => /^mongodb(\+srv)?:\/\//.test(u), {
-        message: 'MONGODB_URI must start with mongodb:// or mongodb+srv://',
-      }),
     YAPIN_SERVER_ID: z
       .string()
       .trim()
       .min(1, 'YAPIN_SERVER_ID is required'),
+    // Local crash-safe JSON storage directory (no external database needed!)
+    DATA_DIR: z
+      .string()
+      .trim()
+      .min(1, 'DATA_DIR cannot be empty')
+      .default('./data'),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),

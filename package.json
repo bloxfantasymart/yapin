@@ -26,12 +26,11 @@
     "trading",
     "tickets",
     "disputes",
-    "mongodb"
+    "json-storage"
   ],
   "license": "MIT",
   "dependencies": {
     "dotenv": "^18.0.9",
-    "mongoose": "^9.11.4",
     "pino": "^10.4.0",
     "zod": "^4.6.7"
   },

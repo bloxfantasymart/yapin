@@ -1,33 +1,21 @@
 import dotenv from 'dotenv';
-import { connectDatabase, checkDatabaseHealth, disconnectDatabase } from '../src/database/connection.js';
-import * as Models from '../src/database/models/index.js';
-import { sanitizeErrorMessage } from '../src/utils/errors.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { connectDatabase, disconnectDatabase, pingDatabase } from '../src/database/connection.js';
 
 dotenv.config({ quiet: true });
 
 async function main() {
-  const uri = process.env.MONGODB_URI;
-  if (!uri || !/^mongodb(\+srv)?:\/\//.test(uri)) {
-    console.error('[ERROR] Missing or invalid MONGODB_URI in environment/.env.');
-    process.exit(1);
-  }
-
+  const dataDir = path.resolve(process.env.DATA_DIR || './data');
   try {
-    await connectDatabase(uri, { serverSelectionTimeoutMS: 8000 });
-    const health = await checkDatabaseHealth();
-    console.log(
-      `[OK] MongoDB connected (latency: ${health.latencyMs}ms, transactionsSupported: ${health.transactionsSupported}).`,
-    );
-
-    const modelList = Object.values(Models).filter((m) => typeof m?.syncIndexes === 'function');
-    for (const model of modelList) {
-      await model.createIndexes();
-      console.log(`  - Verified indexes on collection: ${model.collection.collectionName}`);
-    }
-    console.log('[OK] All Mongoose schema indexes verified.');
+    await connectDatabase(dataDir);
+    const health = await pingDatabase();
+    const files = (await fs.readdir(dataDir)).filter((f) => f.endsWith('.json'));
+    console.log(`[OK] Local JSON database verified at ${health.dataDir}`);
+    console.log(`[OK] Initialized & validated ${files.length} JSON collections: ${files.join(', ')}`);
   } catch (err) {
-    console.error(`[ERROR] Database check failed: ${sanitizeErrorMessage(err.message)}`);
-    process.exit(1);
+    console.error(`[ERROR] JSON storage check failed: ${err.message}`);
+    process.exitCode = 1;
   } finally {
     await disconnectDatabase();
   }

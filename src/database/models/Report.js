@@ -1,4 +1,5 @@
-import mongoose from 'mongoose';
+import { z } from 'zod';
+import { dateField, nullableDateField, validateWithSchema } from './schemaHelpers.js';
 
 export const REPORT_CATEGORIES = Object.freeze([
   'IMPERSONATION',
@@ -16,82 +17,28 @@ export const REPORT_STATUSES = Object.freeze([
   'DISMISSED',
 ]);
 
-const ReportSchema = new mongoose.Schema(
-  {
-    reportId: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-    },
-    serverId: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    reporterId: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    targetUserId: {
-      type: String,
-      required: true,
-      index: true,
-    },
-    tradeId: {
-      type: String,
-      default: null,
-    },
-    ticketId: {
-      type: String,
-      default: null,
-    },
-    category: {
-      type: String,
-      enum: REPORT_CATEGORIES,
-      default: 'OTHER_SUSPICIOUS',
-    },
-    description: {
-      type: String,
-      required: true,
-      minlength: 10,
-      maxlength: 2000,
-    },
-    evidenceRefs: {
-      type: [String],
-      default: [],
-    },
-    status: {
-      type: String,
-      enum: REPORT_STATUSES,
-      default: 'PENDING_REVIEW',
-      index: true,
-    },
-    reviewedBy: {
-      type: String,
-      default: null,
-    },
-    reviewNotes: {
-      type: String,
-      default: null,
-      maxlength: 1000,
-    },
-    reviewedAt: {
-      type: Date,
-      default: null,
-    },
-    retainUntil: {
-      type: Date,
-      default: null,
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
+export const ReportSchema = z.object({
+  reportId: z.string().trim().min(1),
+  serverId: z.string().min(1),
+  reporterId: z.string().min(1),
+  targetUserId: z.string().min(1),
+  tradeId: z.string().nullable().default(null),
+  ticketId: z.string().nullable().default(null),
+  category: z.enum(REPORT_CATEGORIES).default('OTHER_SUSPICIOUS'),
+  description: z.string().min(10).max(2000),
+  evidenceRefs: z.array(z.string()).default([]),
+  status: z.enum(REPORT_STATUSES).default('PENDING_REVIEW'),
+  reviewedBy: z.string().nullable().default(null),
+  reviewNotes: z.string().max(1000).nullable().default(null),
+  reviewedAt: nullableDateField(),
+  retainUntil: nullableDateField(),
+  createdAt: dateField(true),
+  updatedAt: dateField(true),
+});
 
-ReportSchema.index({ serverId: 1, status: 1, createdAt: -1 });
-ReportSchema.index({ serverId: 1, targetUserId: 1, status: 1 });
-
-export const ReportModel = mongoose.models.Report || mongoose.model('Report', ReportSchema);
+export const ReportModel = {
+  modelName: 'Report',
+  primaryKey: 'reportId',
+  schema: ReportSchema,
+  validate: (data) => validateWithSchema(ReportSchema, 'Report', data),
+};

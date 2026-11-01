@@ -1,75 +1,61 @@
-import mongoose from 'mongoose';
+import { z } from 'zod';
+import {
+  dateField,
+  defaultedObject,
+  nullableDateField,
+  validateWithSchema,
+} from './schemaHelpers.js';
 
-const WarningSubSchema = new mongoose.Schema(
-  {
-    warningId: { type: String, required: true, trim: true },
-    serverId: { type: String, required: true, trim: true },
-    issuedBy: { type: String, required: true, trim: true },
-    reason: { type: String, required: true, trim: true, maxlength: 1000 },
-    tradeId: { type: String, default: null },
-    createdAt: { type: Date, default: Date.now },
-  },
-  { _id: false },
-);
+const WarningSubSchema = z.object({
+  warningId: z.string().trim().min(1),
+  serverId: z.string().trim().min(1),
+  issuedBy: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(1000),
+  tradeId: z.string().nullable().default(null),
+  createdAt: dateField(true),
+});
 
-const UserSchema = new mongoose.Schema(
-  {
-    yapinUserId: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-      maxlength: 64,
-    },
-    lastKnownUsername: {
-      type: String,
-      default: null,
-      trim: true,
-      maxlength: 64,
-    },
-    tradeStats: {
-      created: { type: Number, default: 0, min: 0 },
-      completed: { type: Number, default: 0, min: 0 },
-      cancelled: { type: Number, default: 0, min: 0 },
-      disputed: { type: Number, default: 0, min: 0 },
-      rejected: { type: Number, default: 0, min: 0 },
-      asMiddlemanClaimed: { type: Number, default: 0, min: 0 },
-      asMiddlemanCompleted: { type: Number, default: 0, min: 0 },
-      activeMiddlemanLoad: { type: Number, default: 0, min: 0 },
-    },
-    staffAvailability: {
-      available: { type: Boolean, default: false },
-      note: { type: String, default: '', maxlength: 200 },
-      updatedAt: { type: Date, default: null },
-    },
-    warnings: {
-      type: [WarningSubSchema],
-      default: [],
-    },
-    suspension: {
-      active: { type: Boolean, default: false },
-      reason: { type: String, default: null, maxlength: 1000 },
-      suspendedBy: { type: String, default: null },
-      suspendedAt: { type: Date, default: null },
-      expiresAt: { type: Date, default: null },
-      liftedBy: { type: String, default: null },
-      liftedAt: { type: Date, default: null },
-    },
-    // Reports never auto-label a user a scammer; they track review counts & explicit staff restrictions only.
-    riskFlags: {
-      openReportsCount: { type: Number, default: 0, min: 0 },
-      substantiatedReportsCount: { type: Number, default: 0, min: 0 },
-      underStaffReview: { type: Boolean, default: false },
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
+export const UserSchema = z.object({
+  yapinUserId: z.string().trim().min(1).max(64),
+  lastKnownUsername: z.string().trim().max(64).nullable().default(null),
+  tradeStats: defaultedObject({
+    created: z.number().min(0).default(0),
+    completed: z.number().min(0).default(0),
+    cancelled: z.number().min(0).default(0),
+    disputed: z.number().min(0).default(0),
+    rejected: z.number().min(0).default(0),
+    asMiddlemanClaimed: z.number().min(0).default(0),
+    asMiddlemanCompleted: z.number().min(0).default(0),
+    activeMiddlemanLoad: z.number().min(0).default(0),
+  }),
+  staffAvailability: defaultedObject({
+    available: z.boolean().default(false),
+    note: z.string().max(200).default(''),
+    updatedAt: nullableDateField(),
+  }),
+  warnings: z.array(WarningSubSchema).default([]),
+  suspension: defaultedObject({
+    active: z.boolean().default(false),
+    reason: z.string().max(1000).nullable().default(null),
+    suspendedBy: z.string().nullable().default(null),
+    suspendedAt: nullableDateField(),
+    expiresAt: nullableDateField(),
+    liftedBy: z.string().nullable().default(null),
+    liftedAt: nullableDateField(),
+  }),
+  // Reports never auto-label a user a scammer; they track review counts & explicit staff restrictions only.
+  riskFlags: defaultedObject({
+    openReportsCount: z.number().min(0).default(0),
+    substantiatedReportsCount: z.number().min(0).default(0),
+    underStaffReview: z.boolean().default(false),
+  }),
+  createdAt: dateField(true),
+  updatedAt: dateField(true),
+});
 
-UserSchema.index({ 'suspension.active': 1, 'suspension.expiresAt': 1 });
-UserSchema.index({ 'staffAvailability.available': 1, 'tradeStats.activeMiddlemanLoad': 1 });
-UserSchema.index({ 'tradeStats.completed': -1 });
-UserSchema.index({ 'tradeStats.asMiddlemanCompleted': -1 });
-
-export const UserModel = mongoose.models.User || mongoose.model('User', UserSchema);
+export const UserModel = {
+  modelName: 'User',
+  primaryKey: 'yapinUserId',
+  schema: UserSchema,
+  validate: (data) => validateWithSchema(UserSchema, 'User', data),
+};

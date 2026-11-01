@@ -37,7 +37,6 @@ describe('Stage 1 — Yapin API Authentication, Rate Limits, Timeouts & Resilien
     expect(() =>
       loadEnv({
         YAPIN_BOT_TOKEN: 'invalid',
-        MONGODB_URI: 'mongodb://127.0.0.1:27017/test',
         YAPIN_SERVER_ID: 'srv-1',
       }),
     ).toThrow(/yb_/i);
@@ -45,7 +44,6 @@ describe('Stage 1 — Yapin API Authentication, Rate Limits, Timeouts & Resilien
     expect(() =>
       loadEnv({
         YAPIN_BOT_TOKEN: 'yb_valid_123456',
-        MONGODB_URI: 'mongodb://127.0.0.1:27017/test',
         YAPIN_SERVER_ID: 'srv-1',
         DASHBOARD_ENABLED: 'true',
       }),
@@ -53,10 +51,10 @@ describe('Stage 1 — Yapin API Authentication, Rate Limits, Timeouts & Resilien
 
     const valid = loadEnv({
       YAPIN_BOT_TOKEN: 'yb_valid_123456',
-      MONGODB_URI: 'mongodb://127.0.0.1:27017/test',
       YAPIN_SERVER_ID: 'srv-1',
     });
     expect(valid.YAPIN_API_BASE_URL).toBe('https://www.yapin.gg/api/bot/v1');
+    expect(valid.DATA_DIR).toBe('./data');
   });
 
   it('authenticates via GET /me and rejects 401 unauthorized tokens immediately', async () => {

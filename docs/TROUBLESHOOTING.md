@@ -1,6 +1,6 @@
 # Troubleshooting Guide — Yapin.gg Middleman Bot
 
-This guide covers common local setup, Yapin API permission, MongoDB, Windows 11 PowerShell, and Staff Dashboard issues.
+This guide covers common local setup, Yapin API permission, local JSON storage, Windows 11 PowerShell, and Staff Dashboard issues.
 
 ---
 
@@ -10,7 +10,6 @@ This guide covers common local setup, Yapin API permission, MongoDB, Windows 11 
 ```text
 [FATAL] Invalid environment configuration:
   - YAPIN_BOT_TOKEN: YAPIN_BOT_TOKEN must start with "yb_"
-  - MONGODB_URI: MONGODB_URI is required
   - YAPIN_SERVER_ID: YAPIN_SERVER_ID is required
 ```
 
@@ -73,15 +72,15 @@ Logs show Gateway close code `4003` (Gateway disabled for bot) or `4008` (Too ma
 
 ---
 
-## 6. MongoDB Standalone Warning (`Transaction numbers are only allowed on a replica set`)
+## 6. Local JSON Storage Permissions or Container Volume Persistence
 
 **Symptom:**
-Running against a local single-node Windows MongoDB logs:
-`Standalone MongoDB detected; using atomic single-document CAS concurrency fallback`.
+- `EACCES: permission denied, mkdir './data'` on Linux/Docker, OR trades reset after redeploying a cloud container.
 
-**Explanation & Production Recommendation:**
-- Locally, single-node MongoDB does not enable multi-document transactions unless configured as a single-node replica set (`rs.initiate()`). Our repositories automatically fall back to atomic single-document compare-and-swap (`findOneAndUpdate` matching `state` + `version`), which still prevents concurrent double-completion!
-- For production deployments, use **MongoDB Atlas** (even M0 free tier is a 3-node Replica Set) or initialize a replica set so full multi-document ACID transactions are active automatically.
+**Cause & Fix:**
+- **Permissions**: Ensure the user running Node owns the `DATA_DIR` folder (e.g. `chown -R yapinbot:yapinbot /opt/yapin-middleman-bot/data` on Linux).
+- **Cloud Container Persistence (Railway / Render / Fly.io / Docker)**: Cloud containers wipe ephemeral filesystems when redeployed unless a **Persistent Volume** is attached. Mount a persistent volume to `/app/data` (or set `DATA_DIR` to your mounted volume path) so `trades.json`, `users.json`, `tickets.json`, `audit_logs.json`, and `server_configs.json` persist across redeploys!
+- **Automatic Crash Recovery**: Every write uses atomic `*.tmp` + `fsync` + `rename` and keeps a `.bak` copy — if power fails mid-write, `JsonDatabase` automatically cleans up `.tmp` files and restores from `.bak` if needed.
 
 ---
 

@@ -1,4 +1,10 @@
-import mongoose from 'mongoose';
+import { z } from 'zod';
+import {
+  dateField,
+  defaultedObject,
+  nullableDateField,
+  validateWithSchema,
+} from './schemaHelpers.js';
 
 export const DISPUTE_STATUSES = Object.freeze([
   'OPEN',
@@ -8,89 +14,39 @@ export const DISPUTE_STATUSES = Object.freeze([
   'ESCALATED',
 ]);
 
-const EvidenceRefSubSchema = new mongoose.Schema(
-  {
-    evidenceId: { type: String, required: true },
-    submittedBy: { type: String, required: true },
-    reference: { type: String, required: true, maxlength: 500 },
-    url: { type: String, default: null, maxlength: 512 },
-    description: { type: String, default: '', maxlength: 1000 },
-    restrictedToStaff: { type: Boolean, default: true },
-    submittedAt: { type: Date, default: Date.now },
-  },
-  { _id: false },
-);
+const EvidenceRefSubSchema = z.object({
+  evidenceId: z.string().min(1),
+  submittedBy: z.string().min(1),
+  reference: z.string().min(1).max(500),
+  url: z.string().max(512).nullable().default(null),
+  description: z.string().max(1000).default(''),
+  restrictedToStaff: z.boolean().default(true),
+  submittedAt: dateField(true),
+});
 
-const DisputeSchema = new mongoose.Schema(
-  {
-    disputeId: {
-      type: String,
-      required: true,
-      unique: true,
-      trim: true,
-    },
-    serverId: {
-      type: String,
-      required: true,
-      trim: true,
-      index: true,
-    },
-    tradeId: {
-      type: String,
-      required: true,
-      trim: true,
-      index: true,
-    },
-    ticketId: {
-      type: String,
-      default: null,
-    },
-    reporterId: {
-      type: String,
-      required: true,
-      trim: true,
-      index: true,
-    },
-    reason: {
-      type: String,
-      required: true,
-      trim: true,
-      minlength: 5,
-      maxlength: 2000,
-    },
-    evidence: {
-      type: [EvidenceRefSubSchema],
-      default: [],
-    },
-    assignedReviewerId: {
-      type: String,
-      default: null,
-      index: true,
-    },
-    status: {
-      type: String,
-      enum: DISPUTE_STATUSES,
-      required: true,
-      default: 'OPEN',
-      index: true,
-    },
-    resolution: {
-      outcome: {
-        type: String,
-        enum: ['RESUME_TRADE', 'CANCEL_TRADE', 'UNDER_REVIEW', null],
-        default: null,
-      },
-      decisionSummary: { type: String, default: null, maxlength: 2000 },
-      decidedBy: { type: String, default: null },
-      decidedAt: { type: Date, default: null },
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
+export const DisputeSchema = z.object({
+  disputeId: z.string().trim().min(1),
+  serverId: z.string().trim().min(1),
+  tradeId: z.string().trim().min(1),
+  ticketId: z.string().nullable().default(null),
+  reporterId: z.string().trim().min(1),
+  reason: z.string().trim().min(5).max(2000),
+  evidence: z.array(EvidenceRefSubSchema).default([]),
+  assignedReviewerId: z.string().nullable().default(null),
+  status: z.enum(DISPUTE_STATUSES).default('OPEN'),
+  resolution: defaultedObject({
+    outcome: z.enum(['RESUME_TRADE', 'CANCEL_TRADE', 'UNDER_REVIEW']).nullable().default(null),
+    decisionSummary: z.string().max(2000).nullable().default(null),
+    decidedBy: z.string().nullable().default(null),
+    decidedAt: nullableDateField(),
+  }),
+  createdAt: dateField(true),
+  updatedAt: dateField(true),
+});
 
-DisputeSchema.index({ serverId: 1, status: 1, createdAt: -1 });
-DisputeSchema.index({ tradeId: 1, status: 1 });
-
-export const DisputeModel = mongoose.models.Dispute || mongoose.model('Dispute', DisputeSchema);
+export const DisputeModel = {
+  modelName: 'Dispute',
+  primaryKey: 'disputeId',
+  schema: DisputeSchema,
+  validate: (data) => validateWithSchema(DisputeSchema, 'Dispute', data),
+};

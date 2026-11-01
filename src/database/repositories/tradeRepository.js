@@ -1,4 +1,7 @@
+import { ConflictError } from '../../utils/errors.js';
+import { getByDotPath, setByDotPath } from '../jsonStore.js';
 import { TradeModel } from '../models/Trade.js';
+import { deepCloneRecord } from '../models/schemaHelpers.js';
 
 export const ACTIVE_TRADE_STATES = Object.freeze([
   'CREATED',
@@ -12,128 +15,170 @@ export const ACTIVE_TRADE_STATES = Object.freeze([
   'UNDER_REVIEW',
 ]);
 
-export class MongooseTradeRepository {
-  async create(tradeData, session = null) {
-    const [created] = await TradeModel.create([tradeData], session ? { session } : undefined);
-    return created.toObject();
+export class JsonTradeRepository {
+  /**
+   * @param {import('../jsonStore.js').JsonDatabase} db
+   */
+  constructor(db) {
+    this.db = db;
   }
 
-  async findByTradeId(tradeId, session = null) {
-    return TradeModel.findOne({ tradeId }).session(session).lean();
+  async create(tradeData) {
+    return this.db.withDocLock(`trade:${tradeData.tradeId}`, async () => {
+      this.db.checkHealthy();
+      if (this.db.store.trades[tradeData.tradeId]) {
+        const dup = new ConflictError(`Duplicate tradeId rejected: ${tradeData.tradeId}`);
+        dup.code = 11000;
+        throw dup;
+      }
+      const now = new Date();
+      const validated = TradeModel.validate({
+        ...tradeData,
+        createdAt: tradeData.createdAt || now,
+        updatedAt: now,
+      });
+      this.db.store.trades[validated.tradeId] = validated;
+      await this.db.markModified('trades');
+      return deepCloneRecord(validated);
+    });
   }
 
-  async findActiveDuplicate(serverId, dedupeFingerprint, session = null) {
-    return TradeModel.findOne({
-      serverId,
-      dedupeFingerprint,
-      state: { $in: ACTIVE_TRADE_STATES },
-    })
-      .session(session)
-      .lean();
+  async findByTradeId(tradeId) {
+    this.db.checkHealthy();
+    const doc = this.db.store.trades[tradeId];
+    return doc ? deepCloneRecord(doc) : null;
   }
 
-  async countActiveForParticipant(serverId, userId, session = null) {
-    return TradeModel.countDocuments({
-      serverId,
-      state: { $in: ACTIVE_TRADE_STATES },
-      $or: [{ traderAId: userId }, { traderBId: userId }],
-    }).session(session);
+  async findActiveDuplicate(serverId, dedupeFingerprint) {
+    this.db.checkHealthy();
+    const hit = Object.values(this.db.store.trades).find(
+      (t) =>
+        t.serverId === serverId &&
+        t.dedupeFingerprint === dedupeFingerprint &&
+        ACTIVE_TRADE_STATES.includes(t.state),
+    );
+    return hit ? deepCloneRecord(hit) : null;
   }
 
-  async countActiveForMiddleman(serverId, middlemanId, session = null) {
-    return TradeModel.countDocuments({
-      serverId,
-      assignedMiddlemanId: middlemanId,
-      state: { $in: ACTIVE_TRADE_STATES },
-    }).session(session);
+  async countActiveForParticipant(serverId, userId) {
+    this.db.checkHealthy();
+    return Object.values(this.db.store.trades).filter(
+      (t) =>
+        t.serverId === serverId &&
+        ACTIVE_TRADE_STATES.includes(t.state) &&
+        (t.traderAId === userId || t.traderBId === userId),
+    ).length;
+  }
+
+  async countActiveForMiddleman(serverId, middlemanId) {
+    this.db.checkHealthy();
+    return Object.values(this.db.store.trades).filter(
+      (t) =>
+        t.serverId === serverId &&
+        t.assignedMiddlemanId === middlemanId &&
+        ACTIVE_TRADE_STATES.includes(t.state),
+    ).length;
   }
 
   /**
-   * Atomically updates a trade ONLY if `tradeId`, `version`, and (optionally) `expectedState`
-   * match. Increments `version` by 1 to prevent lost updates and concurrent completion races.
-   *
-   * Returns `null` when a concurrent writer modified the trade first.
+   * Atomically updates a trade ONLY if `tradeId`, `version`, and (optionally) `expectedStates`
+   * match. Increments `version` by 1 under a per-trade mutex so concurrent completion races
+   * never double-complete.
    */
-  async atomicUpdate(
-    tradeId,
-    { expectedVersion, expectedStates = null, set = {}, push = {} },
-    session = null,
-  ) {
-    const filter = {
-      tradeId,
-      version: expectedVersion,
-    };
-    if (Array.isArray(expectedStates) && expectedStates.length > 0) {
-      filter.state = { $in: expectedStates };
-    }
+  async atomicUpdate(tradeId, { expectedVersion, expectedStates = null, set = {}, push = {} }) {
+    return this.db.withDocLock(`trade:${tradeId}`, async () => {
+      this.db.checkHealthy();
+      const current = this.db.store.trades[tradeId];
+      if (!current) return null;
+      if (current.version !== expectedVersion) return null;
+      if (
+        Array.isArray(expectedStates) &&
+        expectedStates.length > 0 &&
+        !expectedStates.includes(current.state)
+      ) {
+        return null;
+      }
 
-    const updateDoc = {
-      $inc: { version: 1 },
-    };
-    if (Object.keys(set).length > 0) {
-      updateDoc.$set = set;
-    }
-    if (Object.keys(push).length > 0) {
-      updateDoc.$push = push;
-    }
+      const candidate = deepCloneRecord(current);
+      for (const [k, v] of Object.entries(set)) {
+        setByDotPath(candidate, k, v);
+      }
+      for (const [k, v] of Object.entries(push)) {
+        const arr = getByDotPath(candidate, k) || [];
+        arr.push(v);
+        setByDotPath(candidate, k, arr);
+      }
+      candidate.version = current.version + 1;
+      candidate.updatedAt = new Date();
 
-    return TradeModel.findOneAndUpdate(filter, updateDoc, {
-      returnDocument: 'after',
-      runValidators: true,
-      session,
-    }).lean();
+      const validated = TradeModel.validate(candidate);
+      validated.createdAt = current.createdAt;
+      this.db.store.trades[tradeId] = validated;
+      await this.db.markModified('trades');
+      return deepCloneRecord(validated);
+    });
   }
 
-  async listTrades(
-    { serverId, participantId, middlemanId, states, page = 1, limit = 15 } = {},
-  ) {
-    const filter = {};
-    if (serverId) filter.serverId = serverId;
-    if (participantId) {
-      filter.$or = [{ traderAId: participantId }, { traderBId: participantId }];
-    }
-    if (middlemanId) filter.assignedMiddlemanId = middlemanId;
-    if (Array.isArray(states) && states.length > 0) {
-      filter.state = { $in: states };
-    }
+  async listTrades({
+    serverId,
+    participantId,
+    middlemanId,
+    state,
+    states,
+    page = 1,
+    limit = 15,
+  } = {}) {
+    this.db.checkHealthy();
+    const stateList = Array.isArray(states) && states.length > 0 ? states : state ? [state] : null;
+
+    const all = Object.values(this.db.store.trades)
+      .filter((t) => {
+        if (serverId && t.serverId !== serverId) return false;
+        if (participantId && t.traderAId !== participantId && t.traderBId !== participantId) {
+          return false;
+        }
+        if (middlemanId && t.assignedMiddlemanId !== middlemanId) return false;
+        if (stateList && !stateList.includes(t.state)) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const safePage = Math.max(1, Number(page) || 1);
     const safeLimit = Math.min(50, Math.max(1, Number(limit) || 15));
-    const skip = (safePage - 1) * safeLimit;
-
-    const [items, total] = await Promise.all([
-      TradeModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(safeLimit).lean(),
-      TradeModel.countDocuments(filter),
-    ]);
+    const items = all
+      .slice((safePage - 1) * safeLimit, safePage * safeLimit)
+      .map(deepCloneRecord);
 
     return {
       items,
-      total,
+      total: all.length,
       page: safePage,
       limit: safeLimit,
-      totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+      totalPages: Math.max(1, Math.ceil(all.length / safeLimit)),
     };
   }
 
   async findExpiredCandidates(now = new Date(), limit = 50) {
-    return TradeModel.find({
-      state: { $in: ['CREATED', 'WAITING_FOR_PARTICIPANTS', 'WAITING_FOR_MIDDLEMAN'] },
-      expiresAt: { $lte: now },
-    })
-      .limit(limit)
-      .lean();
+    this.db.checkHealthy();
+    const cutoff = now.getTime();
+    return Object.values(this.db.store.trades)
+      .filter(
+        (t) =>
+          ['CREATED', 'WAITING_FOR_PARTICIPANTS', 'WAITING_FOR_MIDDLEMAN'].includes(t.state) &&
+          new Date(t.expiresAt).getTime() <= cutoff,
+      )
+      .slice(0, limit)
+      .map(deepCloneRecord);
   }
 
   async getServerStats(serverId) {
-    const rows = await TradeModel.aggregate([
-      { $match: { serverId } },
-      { $group: { _id: '$state', count: { $sum: 1 } } },
-    ]);
+    this.db.checkHealthy();
     const countsByState = {};
     let total = 0;
-    for (const row of rows) {
-      countsByState[row._id] = row.count;
-      total += row.count;
+    for (const t of Object.values(this.db.store.trades)) {
+      if (t.serverId !== serverId) continue;
+      countsByState[t.state] = (countsByState[t.state] || 0) + 1;
+      total += 1;
     }
     return { total, countsByState };
   }

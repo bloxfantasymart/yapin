@@ -1,32 +1,44 @@
-import { MongooseUserRepository } from './userRepository.js';
-import { MongooseTradeRepository, ACTIVE_TRADE_STATES } from './tradeRepository.js';
+import { getActiveDatabase } from '../connection.js';
+import { JsonUserRepository } from './userRepository.js';
+import { JsonTradeRepository, ACTIVE_TRADE_STATES } from './tradeRepository.js';
 import {
-  MongooseDisputeRepository,
-  MongooseReportRepository,
-  MongooseTicketRepository,
+  JsonDisputeRepository,
+  JsonReportRepository,
+  JsonTicketRepository,
   OPEN_TICKET_STATUSES,
 } from './ticketDisputeRepository.js';
 import {
-  MongooseAuditRepository,
-  MongooseOperationalRepository,
-  MongooseServerConfigRepository,
+  JsonAuditRepository,
+  JsonOperationalRepository,
+  JsonServerConfigRepository,
 } from './auditConfigRepository.js';
 
 export { ACTIVE_TRADE_STATES, OPEN_TICKET_STATUSES };
 
-export function createMongooseRepositories() {
-  const audits = new MongooseAuditRepository();
-  const serverConfigs = new MongooseServerConfigRepository();
+/**
+ * Creates the full repository suite backed by a `JsonDatabase` instance.
+ *
+ * @param {import('../jsonStore.js').JsonDatabase} [database]
+ */
+export function createJsonRepositories(database = getActiveDatabase()) {
+  if (!database) {
+    throw new Error('JsonDatabase instance is required to initialize JSON repositories.');
+  }
+
+  const audits = new JsonAuditRepository(database);
+  const serverConfigs = new JsonServerConfigRepository(database);
+
   return {
-    users: new MongooseUserRepository(),
-    trades: new MongooseTradeRepository(),
-    tickets: new MongooseTicketRepository(),
-    disputes: new MongooseDisputeRepository(),
-    reports: new MongooseReportRepository(),
+    db: database,
+    users: new JsonUserRepository(database),
+    trades: new JsonTradeRepository(database),
+    tickets: new JsonTicketRepository(database),
+    disputes: new JsonDisputeRepository(database),
+    reports: new JsonReportRepository(database),
     audits,
     auditLogs: audits,
     serverConfigs,
     serverConfig: serverConfigs,
-    operational: new MongooseOperationalRepository(),
+    operational: new JsonOperationalRepository(database),
   };
 }

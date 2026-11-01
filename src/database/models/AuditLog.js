@@ -1,111 +1,52 @@
-import mongoose from 'mongoose';
+import { z } from 'zod';
 import { SecurityError } from '../../utils/errors.js';
+import { dateField, deepFreezeRecord, validateWithSchema } from './schemaHelpers.js';
 
 /**
- * Append-Only AuditLog Schema
+ * Append-Only AuditLog Schema (JSON Storage Edition)
  *
- * Security invariant (Requirement 10):
- * Audit entries are strictly append-only at the application and Mongoose middleware level.
- * Update and delete operations are unconditionally blocked.
+ * Security invariant:
+ * Audit entries are frozen (`Object.freeze`) and strictly append-only.
+ * Update and delete operations are unconditionally blocked at both model and store levels.
  */
-const AuditLogSchema = new mongoose.Schema(
-  {
-    auditId: {
-      type: String,
-      required: true,
-      unique: true,
-      immutable: true,
-    },
-    serverId: {
-      type: String,
-      required: true,
-      immutable: true,
-      index: true,
-    },
-    actorId: {
-      type: String,
-      required: true,
-      immutable: true,
-      index: true,
-    },
-    actorType: {
-      type: String,
-      enum: ['USER', 'STAFF', 'SYSTEM'],
-      required: true,
-      immutable: true,
-    },
-    action: {
-      type: String,
-      required: true,
-      immutable: true,
-      index: true,
-    },
-    targetType: {
-      type: String,
-      enum: ['TRADE', 'TICKET', 'DISPUTE', 'USER', 'REPORT', 'SERVER_CONFIG', 'SYSTEM'],
-      required: true,
-      immutable: true,
-    },
-    targetId: {
-      type: String,
-      required: true,
-      immutable: true,
-      index: true,
-    },
-    beforeState: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null,
-      immutable: true,
-    },
-    afterState: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null,
-      immutable: true,
-    },
-    correlationId: {
-      type: String,
-      default: null,
-      immutable: true,
-      index: true,
-    },
-    metadata: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-      immutable: true,
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now,
-      required: true,
-      immutable: true,
-      index: true,
-    },
-  },
-  {
-    versionKey: false,
-  },
-);
+export const AuditLogSchema = z.object({
+  auditId: z.string().min(1),
+  serverId: z.string().min(1),
+  actorId: z.string().min(1),
+  actorType: z.enum(['USER', 'STAFF', 'SYSTEM']),
+  action: z.string().min(1),
+  targetType: z.enum([
+    'TRADE',
+    'TICKET',
+    'DISPUTE',
+    'USER',
+    'REPORT',
+    'SERVER_CONFIG',
+    'SYSTEM',
+  ]),
+  targetId: z.string().min(1),
+  beforeState: z.unknown().default(null),
+  afterState: z.unknown().default(null),
+  correlationId: z.string().nullable().default(null),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+  timestamp: dateField(true),
+});
 
-AuditLogSchema.index({ serverId: 1, timestamp: -1 });
-AuditLogSchema.index({ targetType: 1, targetId: 1, timestamp: -1 });
-AuditLogSchema.index({ actorId: 1, timestamp: -1 });
-AuditLogSchema.index({ serverId: 1, action: 1, timestamp: -1 });
-
-const blockMutation = function () {
+const rejectAuditMutation = async () => {
   throw new SecurityError('AuditLog entries are append-only and cannot be modified or deleted.');
 };
 
-for (const op of [
-  'updateOne',
-  'updateMany',
-  'findOneAndUpdate',
-  'replaceOne',
-  'deleteOne',
-  'deleteMany',
-  'findOneAndDelete',
-]) {
-  AuditLogSchema.pre(op, blockMutation);
-}
-
-export const AuditLogModel =
-  mongoose.models.AuditLog || mongoose.model('AuditLog', AuditLogSchema);
+export const AuditLogModel = Object.freeze({
+  modelName: 'AuditLog',
+  primaryKey: 'auditId',
+  appendOnly: true,
+  schema: AuditLogSchema,
+  validate: (data) => deepFreezeRecord(validateWithSchema(AuditLogSchema, 'AuditLog', data)),
+  updateOne: rejectAuditMutation,
+  updateMany: rejectAuditMutation,
+  findOneAndUpdate: rejectAuditMutation,
+  replaceOne: rejectAuditMutation,
+  deleteOne: rejectAuditMutation,
+  deleteMany: rejectAuditMutation,
+  findOneAndDelete: rejectAuditMutation,
+});

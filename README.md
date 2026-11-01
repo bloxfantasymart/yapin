@@ -1,6 +1,6 @@
 # Yapin.gg Middleman Bot
 
-A complete, modular, security-first **Middleman Trade Coordination, Verification, Ticket & Dispute Bot** purpose-built for **[Yapin.gg](https://www.yapin.gg)** in modern JavaScript (**Node.js 22+ LTS**, ES Modules, MongoDB/Mongoose, Zod, Pino, and Vitest).
+A complete, modular, security-first **Middleman Trade Coordination, Verification, Ticket & Dispute Bot** purpose-built for **[Yapin.gg](https://www.yapin.gg)** in modern JavaScript (**Node.js 22+ LTS**, ES Modules, **zero-dependency crash-safe JSON storage**, Zod, Pino, and Vitest).
 
 > **Important Non-Custodial Coordination Model:**  
 > This bot **never** claims to hold, custody, wallet-control, or automatically transfer assets, items, or funds. It operates transparently as an **audited coordination, participant-confirmation, deposit-verification, and dispute-freeze system** supervised by verified server middlemen.
@@ -16,7 +16,7 @@ A complete, modular, security-first **Middleman Trade Coordination, Verification
           -> WAITING_FOR_DEPOSITS -> DEPOSIT_CONFIRMATION -> WAITING_FOR_FINAL_CONFIRMATION -> COMPLETED
   (+ CANCELLED, REJECTED, EXPIRED, DISPUTED, UNDER_REVIEW)
   ```
-  Every transition is precondition-checked, optimistic-concurrency guarded (`version` CAS + MongoDB transactions where supported), timestamped, and written to an **append-only `AuditLog`**.
+  Every transition is precondition-checked, optimistic-concurrency guarded (`version` CAS + ACID multi-collection JSON transactions), timestamped, and written to an **append-only `AuditLog`** (`audit_logs.json`).
 - **Independent Dual Confirmations & Conflict-of-Interest Protection**: Neither trader can accept or confirm for the other; middlemen are blocked from claiming or resolving trades in which they are a participant; self-reported deposits (`REPORTED_SENT`) never auto-confirm without independent staff `/verifydeposit`.
 - **Fail-Closed Private Tickets & Dispute Freezing (`src/tickets/`)**: Supports `GENERAL_SUPPORT`, `TRADE_ASSISTANCE`, `DISPUTE`, `SCAM_REPORT`, `STAFF_REPORT` (Admin-only isolation), and `APPEAL` tickets with SHA-256 checksummed transcripts. If private channel locking (`PATCH /channels/:id { private: true }`) fails, the channel is immediately deleted (never left public) and staff are alerted.
 - **33 User & Staff Slash Commands + Interactive Button Cards (`src/commands/`)**: Server-side role & permission verification (`GET /servers/:id`, `/roles`, `/members/:uid`) on every command and button click.
@@ -41,9 +41,10 @@ yapin/
 │   │   ├── channels.js                 # Fail-closed private channels, read_only locks & categories
 │   │   └── permissions.js              # Server-side UUID & RBAC resolver
 │   ├── database/
-│   │   ├── connection.js               # Mongoose connection, health check & transaction helper
-│   │   ├── models/                     # User, Trade, Ticket, Dispute, AuditLog, ServerConfig, Report, Operational
-│   │   └── repositories/               # Atomic CAS & transactional Mongoose repositories
+│   │   ├── jsonStore.js                # Crash-safe atomic JSON engine (.tmp + fsync + rename + .bak + ACID rollback)
+│   │   ├── connection.js               # JSON directory bootstrap, health check & transaction helper
+│   │   ├── models/                     # Zod-validated User, Trade, Ticket, Dispute, AuditLog, ServerConfig, Report, Operational
+│   │   └── repositories/               # Atomic CAS & transactional JSON repositories
 │   ├── middleman/                      # Core Trade Lifecycle Domain Services
 │   │   ├── tradeStateMachine.js        # Strict transition table & invariants
 │   │   ├── tradeService.js             # Creation, viewer redaction, cancellation, CAS completion & expiry
@@ -72,14 +73,14 @@ yapin/
 ├── scripts/
 │   ├── test-connection.js              # Verifies live Yapin Bot API connectivity
 │   ├── register-commands.js            # Syncs all 33 commands via PUT /commands
-│   ├── db-check.js                     # Verifies MongoDB connection & Mongoose indexes
+│   ├── db-check.js                     # Initializes & validates local ./data/*.json collections
 │   └── package-zip.js                  # Cross-platform pure-Node ZIP packager
 ├── docs/
 │   ├── API_REFERENCE_AND_FEATURE_MATRIX.md
 │   └── TROUBLESHOOTING.md
 └── tests/
-    ├── helpers/                        # Deterministic Yapin REST/OAuth2 mock + Mongoose-validated CAS store
-    ├── unit/                           # 9 unit test suites (33 tests)
+    ├── helpers/                        # Deterministic Yapin REST/OAuth2 mock + JSON CAS store
+    ├── unit/                           # 11 unit test suites (37 tests)
     └── integration/yapin.live.test.js  # Opt-in live Yapin test server suite
 ```
 
@@ -87,12 +88,10 @@ yapin/
 
 ## Step-by-Step Windows 11 Local Setup Guide (PowerShell)
 
-### Step 1 — Install Prerequisites on Windows 11
+### Step 1 — Install Prerequisites on Windows 11 (No External Database Needed!)
 1. **Node.js LTS (v22.12.0 or newer)**: Download the Windows `.msi` installer from [https://nodejs.org](https://nodejs.org) (LTS) and install with default options.
 2. **Git for Windows**: Download from [https://git-scm.com/download/win](https://git-scm.com/download/win).
-3. **MongoDB**: Choose **either**:
-   - **Option A (Easiest — MongoDB Atlas Free Cloud Cluster)**: Create a free M0 cluster at [https://www.mongodb.com/atlas](https://www.mongodb.com/atlas), add your IP under *Network Access*, create a database user, and copy your `mongodb+srv://...` connection URI (supports full multi-document ACID transactions out of the box!).
-   - **Option B (Local MongoDB Community Server)**: Install MongoDB Community Server for Windows (`mongodb://127.0.0.1:27017/yapin_middleman`) as a Windows Service.
+3. **Zero Database Setup Required**: All trades, tickets, disputes, audit logs, and server settings are stored automatically in crash-safe local `.json` files inside `./data/`.
 4. Open **Windows Terminal (PowerShell)** and verify your tools:
    ```powershell
    node -v
@@ -113,23 +112,23 @@ cd path\to\yapin
 Copy-Item .env.example .env
 notepad .env
 ```
-Fill in the three required values in `.env`:
+Fill in the **two** required values in `.env`:
 ```ini
 YAPIN_BOT_TOKEN=yb_paste_your_real_bot_token_here
-MONGODB_URI=mongodb://127.0.0.1:27017/yapin_middleman
 YAPIN_SERVER_ID=paste_your_server_uuid_here
+DATA_DIR=./data
 ```
 Save and close Notepad, then install dependencies:
 ```powershell
 npm install
 ```
 
-### Step 4 — Verify Tests, Database, API Connection & Commands
+### Step 4 — Verify Tests, JSON Storage, API Connection & Commands
 ```powershell
 # 1. Run the offline unit test suite (no external network or live bot required)
 npm test
 
-# 2. Verify MongoDB connectivity and create all Mongoose indexes
+# 2. Initialize & validate local ./data/*.json collections
 npm run db:check
 
 # 3. Verify live Yapin API authentication and server visibility
@@ -220,12 +219,12 @@ To enable the Staff Operations Console (`src/dashboard/`):
 
 1. **Provision Infrastructure**:
    - **Node.js 22 LTS** runtime on Ubuntu 24.04 LTS, Docker, Railway, Render, or Fly.io (run **1 replica per `yb_` bot token** so you stay well within Yapin's 2-socket Gateway limit).
-   - **MongoDB Atlas Replica Set** (`mongodb+srv://...`) with TLS enabled and IP allowlisting.
+   - **Persistent Disk Volume for JSON Storage**: Mount a persistent folder/volume at `DATA_DIR` (default `./data`, or `/app/data` in Docker) so `.json` files persist across container redeploys. No external database is needed!
 2. **Environment & Secrets**:
-   - Inject `NODE_ENV=production`, `YAPIN_BOT_TOKEN`, `MONGODB_URI`, and `YAPIN_SERVER_ID` via host secret manager or `/etc/yapin-middleman/bot.env` (`chmod 600 bot.env`).
+   - Inject `NODE_ENV=production`, `YAPIN_BOT_TOKEN`, `YAPIN_SERVER_ID`, and `DATA_DIR=/app/data` (or `./data`) via host secret manager or `/etc/yapin-middleman/bot.env` (`chmod 600 bot.env`).
    - If enabling `DASHBOARD_ENABLED=true` or `YAPIN_WEBHOOK_ENABLED=true`, place **Nginx** or **Caddy** in front with HTTPS TLS termination so `Secure; HttpOnly; SameSite=Lax` cookies are encrypted in transit.
 3. **Run via Docker, `systemd`, or PM2** (ready-to-use manifests included):
-   - **Docker**: `docker build -t yapin-middleman-bot . && docker run --env-file .env -p 3200:3200 yapin-middleman-bot`
+   - **Docker**: `docker build -t yapin-middleman-bot . && docker run -v yapin-data:/app/data --env-file .env -p 3200:3200 yapin-middleman-bot`
    - **systemd**: Copy `deploy/yapin-middleman.service` to `/etc/systemd/system/`, run `sudo systemctl daemon-reload && sudo systemctl enable --now yapin-middleman`
    - **PM2**: `npm ci --omit=dev && npx pm2 start deploy/ecosystem.config.cjs`
    - **Direct CLI**:
@@ -235,13 +234,13 @@ To enable the Staff Operations Console (`src/dashboard/`):
      npm run register:commands
      NODE_ENV=production npm start
      ```
-   Graceful shutdown (`SIGTERM` / `SIGINT`) automatically closes the HTTP dashboard, stops the Gateway/poller, checkpoints `lastEventId` to MongoDB, and closes Mongoose cleanly.
+   Graceful shutdown (`SIGTERM` / `SIGINT`) automatically closes the HTTP dashboard, stops the Gateway/poller, checkpoints `lastEventId` to `operational.json`, and flushes all pending JSON disk writes cleanly.
 
 ---
 
 ## Testing Modes
 
-- **Offline Unit Suite — 11 Suites / 37 Tests (Mocked Yapin API + Real Mongoose Validation & Atomic CAS Store)**:
+- **Offline Unit Suite — 11 Suites / 37 Tests (Mocked Yapin API + Real Atomic JSON Storage & Zod Validation)**:
   ```bash
   npm test
   ```

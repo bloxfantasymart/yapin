@@ -3,7 +3,7 @@ import { loadEnv } from './config/env.js';
 import { createLogger } from './utils/logger.js';
 import { sanitizeErrorMessage } from './utils/errors.js';
 import { connectDatabase, disconnectDatabase } from './database/connection.js';
-import { createMongooseRepositories } from './database/repositories/index.js';
+import { createJsonRepositories } from './database/repositories/index.js';
 import { YapinClient } from './api/YapinClient.js';
 import { YapinOAuth2Client } from './api/authentication.js';
 import { YapinCommandsApi } from './api/commands.js';
@@ -18,8 +18,8 @@ import { registerEventHandlers } from './handlers/eventHandler.js';
 import { createDashboardServer } from './dashboard/server.js';
 
 /**
- * Bootstraps and runs the production Yapin Middleman Bot, background expiration sweeps,
- * optional HMAC webhook receiver, and optional OAuth2 Staff Dashboard.
+ * Bootstraps and runs the production Yapin Middleman Bot with local atomic JSON storage,
+ * background expiration sweeps, optional HMAC webhook receiver, and optional OAuth2 Staff Dashboard.
  */
 export async function startApplication(rawEnv = process.env) {
   const env = loadEnv(rawEnv, { exitOnError: true });
@@ -30,15 +30,16 @@ export async function startApplication(rawEnv = process.env) {
       nodeVersion: process.version,
       env: env.NODE_ENV,
       serverId: env.YAPIN_SERVER_ID,
+      dataDir: env.DATA_DIR,
       gatewayEnabled: env.YAPIN_ENABLE_GATEWAY,
       dashboardEnabled: env.DASHBOARD_ENABLED,
     },
     'Starting Yapin Middleman Bot...',
   );
 
-  // 1. Connect to MongoDB & initialize Mongoose repositories
-  await connectDatabase(env.MONGODB_URI, { logger });
-  const repositories = createMongooseRepositories();
+  // 1. Initialize local crash-safe JSON storage & repositories
+  const db = await connectDatabase(env.DATA_DIR, { logger });
+  const repositories = createJsonRepositories(db);
   await repositories.serverConfigs.getOrCreate(env.YAPIN_SERVER_ID);
 
   // 2. Initialize isolated Yapin API Client + Adapter Layer
@@ -175,7 +176,7 @@ export async function startApplication(rawEnv = process.env) {
           .saveGatewayCursor('default', client.lastEventId)
           .catch(() => undefined);
       }
-      await disconnectDatabase();
+      await disconnectDatabase({ logger });
       logger.info('Yapin Middleman Bot stopped cleanly.');
     } catch (err) {
       logger.error(
