@@ -6,6 +6,7 @@ import { YapinPermissionsApi } from '../../src/api/permissions.js';
 import { createCommandRegistry } from '../../src/commands/index.js';
 import { CommandHandler } from '../../src/handlers/commandHandler.js';
 import { createApplicationServices } from '../../src/systems/createServices.js';
+import { InteractionHandler } from '../../src/handlers/interactionHandler.js';
 import { logger } from '../../src/utils/logger.js';
 import { createInMemoryRepositories } from '../helpers/inMemoryRepositories.js';
 import { createMockYapinFetch } from '../helpers/mockYapinServer.js';
@@ -98,16 +99,49 @@ describe('MM2 Helper — End-to-End Slash Command Execution Across All 36 Comman
     const cfgView = await runCmd(adminId, 'config', 'view');
     expect(cfgView.embeds[0].title).toContain('Server Configuration');
 
+    let checkpointPanel;
     for (const panelType of ['verify', 'tickets', 'applications', 'roles']) {
       const panelMsg = await runCmd(adminId, 'panel', panelType);
       expect(panelMsg.embeds).toHaveLength(1);
+      if (panelType === 'verify') checkpointPanel = panelMsg;
     }
+    const checkpointButtonIds = checkpointPanel.components.flatMap((row) => row.components).map((button) => button.custom_id);
+    expect(checkpointButtonIds).toContain('mm2:verify:start');
+    expect(checkpointButtonIds).toContain('mm2:verify:rules');
 
     // 2. UserA runs /verify, /rules, /help, /serverinfo, /daily, /rank, /profile, /leaderboard
     const verifyMsg = await runCmd(userA, 'verify');
-    expect(verifyMsg.embeds[0].title).toContain('Welcome to MurderMystery2');
+    expect(verifyMsg.embeds[0].title).toContain('Sheriff Checkpoint');
+    expect((await repos.users.findByYapinId(userA)).verification.verified).toBe(false);
 
-    expect((await runCmd(userA, 'rules')).embeds[0].title).toContain('MurderMystery2');
+    const interactionHandler = new InteractionHandler({
+      client,
+      messagesApi,
+      permissionsApi,
+      repositories: repos,
+      services,
+      cooldowns: null,
+      logger,
+    });
+    await interactionHandler.handleInteraction({
+      id: 'verify-button-1',
+      token: 'verify-token-1',
+      type: 'button',
+      custom_id: 'mm2:verify:start',
+      message_id: 'checkpoint-panel',
+      channel_id: 'ch-rp',
+      server_id: serverId,
+      user_id: userA,
+      username: 'SuspectA',
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    });
+    expect((await repos.users.findByYapinId(userA)).verification.verified).toBe(true);
+    expect(mock.state.members.get(`${serverId}:${userA}`).roles).toContain('role-verified');
+
+    const rulebook = await runCmd(userA, 'rules');
+    expect(rulebook.embeds[0].title).toContain('MurderMystery2');
+    expect(rulebook.embeds[0].description).toContain('Reports are leads, not verdicts');
+    expect(rulebook.embeds[0].description).toContain('metagaming');
     expect((await runCmd(userA, 'help')).embeds[0].title).toContain('MM2 Helper');
     expect((await runCmd(userA, 'serverinfo')).embeds[0].title).toContain('MurderMystery2');
     expect((await runCmd(userA, 'daily')).embeds[0].title).toContain('Crate');

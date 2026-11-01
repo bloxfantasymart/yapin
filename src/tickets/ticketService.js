@@ -135,7 +135,7 @@ export class TicketService {
           stream: 'alert',
         });
         throw new SecurityError(
-          'Unable to provision a private encrypted ticket channel (rolled back safely; staff alerted).',
+          'Unable to provision a private staff-scoped ticket channel (rolled back safely; staff alerted).',
         );
       }
     }

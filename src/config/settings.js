@@ -50,19 +50,11 @@ export const YAPIN_LIMITS = Object.freeze({
   TIMEOUT_MAX_MINUTES: 40320,
 });
 
+// Only permission flags explicitly documented by Yapin's bot API are used for RBAC.
+// `perms.*` entries are normalized by YapinPermissionsApi before being checked.
 export const YAPIN_PERMISSIONS = Object.freeze({
   MANAGE_SERVER: 'manage_server',
   MANAGE_MESSAGES: 'manage_messages',
-  MANAGE_ROLES: 'manage_roles',
-  MANAGE_CHANNELS: 'manage_channels',
-  MANAGE_NICKNAMES: 'manage_nicknames',
-  MANAGE_WEBHOOKS: 'manage_webhooks',
-  KICK_MEMBERS: 'kick_members',
-  BAN_MEMBERS: 'ban_members',
-  TIMEOUT_MEMBERS: 'timeout_members',
-  MOVE_MEMBERS: 'move_members',
-  CONNECT: 'connect',
-  SPEAK: 'speak',
 });
 
 export const ALLOWED_MEDIA_HOSTS = Object.freeze([
@@ -153,12 +145,32 @@ export function resolveRankForLevel(level = 1) {
 }
 
 export const DEFAULT_SERVER_RULES = [
-  '1. **No RDM / FailRP**: Every elimination, accusation, or arrest in MurderMystery2 Roleplay must have valid in-character motive and buildup.',
-  '2. **No Metagaming or Powergaming**: Never use Out-Of-Character (OOC) info in RP, and give other players a fair chance to react (`/rp roll`).',
-  '3. **Respect Sheriff & Staff Directives**: Follow all instructions from verified Sheriffs, Trial Mods, Moderators, and Admins.',
-  '4. **Complete Checkpoint Verification**: All newcomers must verify at the Sheriff Checkpoint (`/verify`) before entering RP channels.',
-  '5. **Keep IC & OOC Separate**: Toxic harassment, hate speech, scam links, or impersonating staff results in immediate Case File action.',
-  '6. **Use Official Tickets & Reports**: Report rulebreakers via `/report` or `/ticket open` instead of arguing in RP channels.',
+  '**MURDERMYSTERY2 ROLEPLAY — COMMUNITY RULEBOOK**',
+  '_Sheriff HQ • Case File Rules • Effective for every member, including staff._',
+  '',
+  '**1. Respect people; keep conflict in character.** No slurs, hate speech, threats, targeted harassment, doxxing, sexual harassment, or repeated unwanted contact. Stop when asked. Real-life safety concerns go to platform staff, not public chat.',
+  '',
+  '**2. Keep IC and OOC separate.** Mark out-of-character chat clearly (for example, `OOC:`). Do not use private messages, streams, profiles, or information learned outside the scene to influence an in-character decision (metagaming).',
+  '',
+  '**3. Give every scene a fair chance.** No powergaming: do not decide another character’s actions, injuries, thoughts, or outcome for them. Describe what your character attempts and allow others to respond. Use `/rp roll` when participants cannot agree on a fair chance-based outcome.',
+  '',
+  '**4. No random kills, arrests, or forced outcomes.** An attack, accusation, arrest, or detention needs a clear in-character reason and reasonable scene buildup. Do not repeatedly target the same player, force a result, or treat a game round result as permission to harass someone.',
+  '',
+  '**5. Play your character honestly.** No godmodding, impossible abilities, instant travel, unexplained knowledge, or changing character identity to evade consequences. Keep characters and scenes appropriate to the server and the agreed setting.',
+  '',
+  '**6. Sheriff, Detective, and staff roles are not immunity.** Follow reasonable scene and server directions. Staff must explain consequential actions, stay within their assigned authority, and may not use staff access to win RP, settle personal disputes, or disclose private reports.',
+  '',
+  '**7. Protect accounts and private information.** No impersonating members or staff, fake evidence, phishing, scam/invite spam, malicious links, or sharing anyone’s private information. Never post passwords, tokens, or private ticket contents.',
+  '',
+  '**8. Use the right channel and keep it readable.** Keep RP in RP spaces, support in tickets, and reports out of public arguments. No spam, flooding, mention abuse, disruptive formatting, or evading moderation with alternate accounts.',
+  '',
+  '**9. Reports are leads, not verdicts.** Submit a concise, truthful report with relevant context through `/report` or a private ticket. Do not organize pile-ons or publish accusations/evidence. Staff review both sides; a report alone does not establish guilt.',
+  '',
+  '**10. Moderation and appeals.** Staff may remove harmful content and apply proportionate action based on context, evidence, and prior history. Do not evade an active restriction. If you disagree, appeal calmly through a private ticket; do not relitigate it in public.',
+  '',
+  '**11. Follow platform rules and staff safety requests.** Yapin.gg rules apply everywhere. Staff may pause a scene or move discussion to a private ticket to protect members or review a case.',
+  '',
+  '**How to join:** read these rules, click the Sheriff Checkpoint verification button, then review `/help` and create a character with `/character create`. Ask questions in a support ticket.',
 ].join('\n');
 
 export const DEFAULT_MOD_APP_QUESTIONS = Object.freeze([

@@ -11,8 +11,9 @@
 
 ### 1. 🛡️ Sheriff's Checkpoint (Verification System)
 - Deploy an interactive checkpoint hub via `/panel verify`.
-- Supports **Instant 1-Click Verification** (`mode=INSTANT`) or **Sheriff Passcode Challenge** (`MM2-XXXX` via `mode=CODE`).
-- Automatically grants `verifiedRoleId`, removes `unverifiedRoleId`, awards a **+50 XP** starter bonus + `🛡️ Verified Citizen` badge, posts a themed welcome card, and blocks actively banned accounts.
+- **Button-first clearance:** new servers default to `INSTANT`; citizens complete entry by pressing **🛡️ Verify at Checkpoint** on the panel. `/verify` explains where to find the official panel and does not bypass it.
+- Optional `CODE` mode issues the `MM2-XXXX` passcode privately from that button. If a code is typed in a command, MM2 Helper first tries to delete that command message; it refuses to check the code if Yapin denies deletion.
+- Clearance is recorded only after the configured `verifiedRoleId` is successfully granted. It removes `unverifiedRoleId`, awards a **+50 XP** starter bonus + `🛡️ Verified Citizen` badge, posts a themed welcome card, and blocks actively banned accounts. Missing role configuration or a Yapin role-permission failure is reported without claiming success.
 - Staff override via `/verifyuser <verify|unverify> <@user>`.
 
 ### 2. ⭐ Sheriff Academy (Moderator Applications)
@@ -76,26 +77,25 @@
 
 ---
 
-### Option A: Run on Windows 11 PC (PowerShell)
+### Option A: Run on Windows 11 PC (Command Prompt)
 
-```powershell
-# 1. Clone from GitHub (or unzip mm2-helper-bot.zip)
+Open **Command Prompt** in the folder where you want the project. Use these commands one at a time (the `main` branch may not yet contain the open pull request, so check out the session branch):
+
+```cmd
 git clone https://github.com/bloxfantasymart/yapin.git
 cd yapin
-
-# 2. Install dependencies
+git fetch origin
+git checkout arena/2e5cd636-yapin
 npm install
-
-# 3. Create your .env file from the template
-Copy-Item .env.example .env
+copy .env.example .env
 notepad .env
-# Fill in YAPIN_BOT_TOKEN=yb_... and YAPIN_SERVER_ID=... then save!
+```
 
-# 4. Verify local JSON storage & Yapin API connection
+In Notepad, fill in `YAPIN_BOT_TOKEN=yb_...` and `YAPIN_SERVER_ID=...`, save, then return to Command Prompt:
+
+```cmd
 npm run db:check
 npm run test:connection
-
-# 5. Start MM2 Helper!
 npm start
 ```
 
@@ -145,7 +145,7 @@ docker run -d \
 
 ## ⚙️ Recommended First-Time Setup Inside **MurderMystery2**
 
-Once **MM2 Helper** is online in **MurderMystery2**, run these commands as the Server Owner / Admin:
+Once **MM2 Helper** is online in **MurderMystery2**, run these commands as the Server Owner / Admin. The bot needs Yapin's supported role/channel/message management permissions. Its role must sit above every role it is expected to grant or remove. Do not treat a displayed username as proof of staff access: configure staff role IDs here, and keep the Server Owner account as the ultimate authority.
 
 ```text
 # 1. Configure Staff & Citizen Roles

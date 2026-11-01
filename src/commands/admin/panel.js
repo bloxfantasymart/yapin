@@ -25,9 +25,21 @@ export const panelCommand = {
     const cfg = await ctx.repositories.serverConfigs.getOrCreate(ctx.event.server_id);
 
     if (kind === 'verify' || kind === 'verification') {
+      await ctx.repositories.serverConfigs.updateConfig(ctx.event.server_id, {
+        'channels.verifyChannelId': ctx.event.channel_id,
+      });
       await ctx.messagesApi.sendMessage(ctx.event.channel_id, {
         embeds: [buildVerificationPanelEmbed(cfg)],
         components: buildVerificationPanelRows(cfg),
+      });
+      await ctx.services.log.record({
+        serverId: ctx.event.server_id,
+        actorId: ctx.event.author_id,
+        actorType: 'STAFF',
+        action: 'VERIFICATION_PANEL_DEPLOYED',
+        targetType: 'CHANNEL',
+        targetId: ctx.event.channel_id,
+        correlationId: ctx.correlationId,
       });
       return;
     }

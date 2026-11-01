@@ -8,6 +8,7 @@ import {
 import {
   buildApplicationReviewEmbed,
   buildApplicationReviewRows,
+  buildRulesEmbed,
   buildMysteryRoundEmbed,
   buildMysteryRoundRows,
   buildTicketEmbed,
@@ -74,9 +75,8 @@ export class InteractionHandler {
       if (domain === 'verify') {
         if (action === 'rules') {
           const rawRules = serverCfg.rulesText || DEFAULT_SERVER_RULES;
-          const rulesStr = Array.isArray(rawRules) ? rawRules.join('\n') : String(rawRules);
           await this.messagesApi.respondToInteraction(interaction, 'ephemeral', {
-            content: `📜 **${BOT_BRAND.serverName} Rules:**\n${rulesStr}`,
+            embeds: [buildRulesEmbed(rawRules)],
           });
           return true;
         }
@@ -85,8 +85,8 @@ export class InteractionHandler {
           await this.messagesApi.respondToInteraction(interaction, 'ephemeral', {
             content:
               `🛡️ **Sheriff Checkpoint Guide:**\n` +
-              `1. Click **Verify at Checkpoint** (or run \`/verify\`).\n` +
-              `2. If Passcode Mode is active, copy your \`MM2-XXXX\` code and type \`/verify MM2-XXXX\`.\n` +
+              `1. Click **Verify at Checkpoint** in the official Sheriff Checkpoint panel.\n` +
+              `2. If passcode mode is active, the button privately shows your short-lived code.\n` +
               `3. Need help? Open a ticket with \`/ticket open\`.`,
           });
           return true;

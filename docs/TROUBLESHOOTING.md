@@ -3,14 +3,17 @@
 ### 1. `[FATAL] Invalid environment configuration: YAPIN_BOT_TOKEN must start with "yb_"`
 - Open **Yapin Settings → Developer → MM2 Helper**, copy the Bot Token starting with `yb_`, and paste it into `.env` (`YAPIN_BOT_TOKEN=yb_...`). Never commit `.env` to Git.
 
-### 2. Verified Role, Muted Role, or Trial Mod Role Is Not Assigned Automatically
+### 2. Checkpoint says it is not ready, or a role was not assigned
+- The Checkpoint now fails closed: it does not save or announce verified clearance unless Yapin successfully grants the configured Verified Citizen role.
 - In **MurderMystery2 Server Settings → Roles**:
-  1. Ensure **MM2 Helper**'s bot role has **Manage Roles** enabled.
-  2. Drag **MM2 Helper**'s bot role **above** the Verified Citizen, Unverified, Muted, Trial Mod, and Level Reward roles in the role hierarchy.
-  3. Verify role IDs with `/config view`.
+  1. Configure `/config role verified <roleId>` and, optionally, `/config role unverified <roleId>`; confirm IDs with `/config view`.
+  2. Ensure **MM2 Helper** has Yapin's **Manage Roles** permission.
+  3. Move **MM2 Helper**'s role above Verified Citizen, Unverified, Muted, Trial Mod, and every Level Reward role it must manage.
+  4. Re-run the button from `/panel verify`. A failed API grant will not be recorded as successful verification.
+- The role resolver accepts documented Yapin `manage_server`, `manage_messages`, and `perms.*` role flags. Configure MM2 Helper staff roles with `/config role ...`; usernames and display names never confer access.
 
-### 3. Opening a Ticket Fails with `"Unable to provision a private encrypted ticket channel"`
-- **MM2 Helper** uses **fail-closed ticket security**: if `PATCH /channels/:id` (`{ private: true, role_ids }`) is rejected (e.g., missing **Manage Channels** permission), the bot immediately deletes the newly created channel so private reports never become public.
+### 3. Opening a Ticket Fails to Provision a Private Channel
+- **MM2 Helper** uses **fail-closed ticket security**: if Yapin rejects `PATCH /channels/:id` (`{ private: true, role_ids }`) (for example, due to missing **Manage Channels** permission), the bot immediately deletes the newly created channel so private reports never become public.
 - Fix: Grant **Manage Channels** to **MM2 Helper** and configure at least one staff role (`/config role admin <roleId>`).
 
 ### 4. Gateway Closes with `4003`

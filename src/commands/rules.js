@@ -1,5 +1,5 @@
-import { EmbedBuilder } from '../api/messages.js';
-import { BOT_BRAND, DEFAULT_SERVER_RULES, EMBED_COLORS } from '../config/settings.js';
+import { DEFAULT_SERVER_RULES } from '../config/settings.js';
+import { buildRulesEmbed } from '../utils/embeds.js';
 
 export const rulesCommand = {
   name: 'rules',
@@ -13,12 +13,6 @@ export const rulesCommand = {
     const rawRules = cfg.rulesText || DEFAULT_SERVER_RULES;
     const text = Array.isArray(rawRules) ? rawRules.join('\n\n') : String(rawRules);
 
-    const embed = new EmbedBuilder()
-      .setTitle(`📜 ${BOT_BRAND.serverName} • Official Roleplay & Server Laws`)
-      .setColor(EMBED_COLORS.CRIMSON)
-      .setDescription(text)
-      .setFooter(BOT_BRAND.footer);
-
-    await ctx.reply({ embeds: [embed] });
+    await ctx.reply({ embeds: [buildRulesEmbed(text)] });
   },
 };

@@ -20,7 +20,7 @@ const CHANNEL_SLOT_MAP = {
 export const configCommand = {
   name: 'config',
   description: 'View or configure MurderMystery2 roles, log channels, verification, apps, and Auto-Mod.',
-  usage: '/config <view|role|channel|verify|apps|automod|levelrole|selfrole> ...',
+  usage: '/config <view|role|channel|verify|rules|apps|automod|levelrole|selfrole> ...',
   category: 'admin',
   staffOnly: true,
   requiredRole: 'admin',
@@ -129,6 +129,24 @@ export const configCommand = {
       return;
     }
 
+    if (sub === 'rules') {
+      if ((positional[1] || '').toLowerCase() !== 'reset') {
+        throw new ValidationError('Usage: `/config rules reset` restores the reviewed MM2 Roleplay rulebook.');
+      }
+      await ctx.repositories.serverConfigs.updateConfig(serverId, { rulesText: DEFAULT_SERVER_RULES });
+      await ctx.services.log.record({
+        serverId,
+        actorId: ctx.event.author_id,
+        actorType: 'STAFF',
+        action: 'SERVER_RULES_RESET',
+        targetType: 'SERVER_CONFIG',
+        targetId: serverId,
+        correlationId: ctx.correlationId,
+      });
+      await ctx.reply({ content: '✅ Official MurderMystery2 Roleplay rules restored. Review them with `/rules`.' });
+      return;
+    }
+
     if (sub === 'verify') {
       const mode = (kv.mode || positional[1] || '').toUpperCase();
       if (!['INSTANT', 'CODE'].includes(mode)) {
@@ -205,7 +223,7 @@ export const configCommand = {
     }
 
     throw new ValidationError(
-      'Subcommands: `/config view`, `/config role`, `/config channel`, `/config verify`, `/config apps`, `/config automod`, `/config levelrole`, `/config selfrole`.',
+      'Subcommands: `/config view`, `/config role`, `/config channel`, `/config verify`, `/config rules reset`, `/config apps`, `/config automod`, `/config levelrole`, `/config selfrole`.',
     );
   },
 };

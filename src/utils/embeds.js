@@ -14,27 +14,37 @@ export function buildProgressBar(current, total, slots = 10) {
   return `${'▰'.repeat(filled)}${'▱'.repeat(slots - filled)} ${Math.round(ratio * 100)}%`;
 }
 
+export function buildRulesEmbed(rawRules = '') {
+  const text = Array.isArray(rawRules) ? rawRules.join('\n') : String(rawRules || '');
+  return new EmbedBuilder()
+    .setTitle(`📜 ${BOT_BRAND.serverName} • Roleplay & Community Rulebook`)
+    .setColor(EMBED_COLORS.CRIMSON)
+    .setDescription(text.slice(0, 4096) || 'The rulebook has not been configured yet.')
+    .setFooter('Read before participating • Reports are reviewed, not treated as proof');
+}
+
 export function buildVerificationPanelEmbed(serverConfig = {}) {
-  const modeLabel =
-    serverConfig?.verification?.mode === 'instant'
-      ? 'Instant One-Click Checkpoint'
-      : 'Sheriff Passcode Checkpoint';
+  const instant = serverConfig?.verification?.mode !== 'code';
+  const modeLabel = instant ? 'Button • one-click clearance' : 'Button • private Sheriff passcode';
 
   return new EmbedBuilder()
-    .setTitle('🛡️ MurderMystery2 • Sheriff Checkpoint')
+    .setTitle('🛡️ Sheriff Checkpoint • New Citizen Intake')
     .setColor(EMBED_COLORS.SHERIFF)
     .setDescription(
       [
-        `Welcome to **${BOT_BRAND.serverName}** — our official Murder Mystery 2 Roleplay community!`,
+        `Welcome to **${BOT_BRAND.serverName}**, a Murder Mystery 2 roleplay community. This is the official entrance to the city.`,
         '',
-        'Before entering **The Mansion**, **Factory**, **Hotel**, or **Police HQ**, every citizen must clear the Sheriff Checkpoint:',
-        '1. Click **📜 Read RP Rules** to review our No-RDM / No-FailRP roleplay standards.',
-        '2. Click **🛡️ Verify at Checkpoint** below (or run `/verify`) to unlock your **Verified Citizen** role.',
+        '**Before you enter:**',
+        '1. Read the rules and understand fair-play RP, IC/OOC boundaries, and how reports are handled.',
+        '2. Press **Verify at Checkpoint**. Clearance is tied to your Yapin account; staff will never ask you to post a password or token.',
+        '3. Once cleared, create your character with `/character create`, check `/help`, and open a private support ticket if you need assistance.',
+        '',
+        '**What happens when you verify?** MM2 Helper records your clearance and grants the configured Verified Citizen role. If role assignment is unavailable, clearance is not reported as successful; contact staff through a ticket.',
       ].join('\n'),
     )
-    .addField('Checkpoint Mode', modeLabel, true)
-    .addField('Bot Assistant', BOT_BRAND.name, true)
-    .setFooter(BOT_BRAND.footer);
+    .addField('Checkpoint process', modeLabel, true)
+    .addField('Keep the city fair', 'No RDM / forced outcomes • No metagaming • Respect privacy • Use private reports', true)
+    .setFooter('MurderMystery2 Sheriff HQ • Powered by MM2 Helper');
 }
 
 export function buildVerificationPanelRows() {
@@ -62,7 +72,7 @@ export function buildTicketPanelEmbed() {
     .setColor(EMBED_COLORS.DETECTIVE)
     .setDescription(
       [
-        'Need assistance from the **MurderMystery2** Staff or Lore Team? Select a case category below to open a **private, encrypted case channel**:',
+        'Need assistance from the **MurderMystery2** Staff or Lore Team? Select a category to request a **private, staff-scoped case channel**. Do not submit passwords, tokens, or unnecessary personal information:',
         '',
         '• **🎫 General Support** — Server questions, role issues, or technical help',
         '• **🎭 Character / Lore** — Custom RP character, faction, or storyline approval',

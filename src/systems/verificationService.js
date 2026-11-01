@@ -171,23 +171,26 @@ export class VerificationService {
       });
     }
 
+    try {
+      if (cfg.roles.verifiedRoleId) {
+        await this.permissionsApi.removeMemberRole(serverId, targetUserId, cfg.roles.verifiedRoleId);
+      }
+      if (cfg.roles.unverifiedRoleId) {
+        await this.permissionsApi.addMemberRole(serverId, targetUserId, cfg.roles.unverifiedRoleId);
+      }
+    } catch (err) {
+      this.logger?.warn?.({ errMessage: err?.message, userId: targetUserId }, 'Unable to update Yapin verification roles');
+      throw new ValidationError(
+        'Verification roles could not be updated. Ask an administrator to check MM2 Helper’s Manage Roles permission and role order, then retry.',
+      );
+    }
+
     const updated = await this.userRepo.updateUser(targetUserId, (draft) => {
       draft.verification.verified = false;
       draft.verification.verifiedAt = null;
       draft.verification.verifiedBy = null;
       draft.verification.pendingCode = null;
     });
-
-    if (cfg.roles.verifiedRoleId) {
-      await this.permissionsApi
-        .removeMemberRole(serverId, targetUserId, cfg.roles.verifiedRoleId)
-        .catch(() => undefined);
-    }
-    if (cfg.roles.unverifiedRoleId) {
-      await this.permissionsApi
-        .addMemberRole(serverId, targetUserId, cfg.roles.unverifiedRoleId)
-        .catch(() => undefined);
-    }
 
     await this.logService.record({
       serverId,
@@ -212,6 +215,27 @@ export class VerificationService {
     cfg,
     correlationId = null,
   }) {
+    if (!cfg.roles?.verifiedRoleId) {
+      throw new ValidationError(
+        'The Sheriff Checkpoint is not ready: an administrator must set the Verified Citizen role with `/config role verified <roleId>`.',
+      );
+    }
+
+    try {
+      await this.permissionsApi.addMemberRole(serverId, userId, cfg.roles.verifiedRoleId);
+      if (cfg.roles.unverifiedRoleId) {
+        await this.permissionsApi.removeMemberRole(serverId, userId, cfg.roles.unverifiedRoleId);
+      }
+    } catch (err) {
+      await this.permissionsApi
+        .removeMemberRole(serverId, userId, cfg.roles.verifiedRoleId)
+        .catch(() => undefined);
+      this.logger?.warn?.({ errMessage: err?.message, userId }, 'Could not complete Yapin verification role assignment');
+      throw new ValidationError(
+        'Clearance was not recorded because the citizen role could not be assigned. Ask an administrator to check MM2 Helper’s Manage Roles permission, role order, and configured role IDs, then try again.',
+      );
+    }
+
     const now = new Date();
     const updated = await this.userRepo.updateUser(
       userId,
@@ -230,22 +254,6 @@ export class VerificationService {
       },
       username,
     );
-
-    if (cfg.roles.verifiedRoleId) {
-      await this.permissionsApi
-        .addMemberRole(serverId, userId, cfg.roles.verifiedRoleId)
-        .catch((err) => {
-          this.logger?.warn?.(
-            { errMessage: err?.message, userId },
-            'Could not grant verifiedRoleId (check Manage Roles permission)',
-          );
-        });
-    }
-    if (cfg.roles.unverifiedRoleId) {
-      await this.permissionsApi
-        .removeMemberRole(serverId, userId, cfg.roles.unverifiedRoleId)
-        .catch(() => undefined);
-    }
 
     if (this.levelingService) {
       await this.levelingService

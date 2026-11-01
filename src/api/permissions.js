@@ -3,8 +3,34 @@ import { AuthorizationError } from '../utils/errors.js';
 
 const normalizePermissionName = (name) =>
   String(name || '')
+    .trim()
     .toLowerCase()
+    .replace(/^perms[._:]/, '')
     .replace(/[^a-z]/g, '');
+
+const normalizeRoleId = (role) => {
+  if (typeof role === 'string' || typeof role === 'number') return String(role);
+  if (!role || typeof role !== 'object') return '';
+  const id = role.id ?? role.role_id ?? role.roleId;
+  return id === undefined || id === null ? '' : String(id);
+};
+
+const addPermissionFlags = (permissions, source) => {
+  if (Array.isArray(source)) {
+    for (const entry of source) {
+      const name = typeof entry === 'string' ? entry : entry?.name ?? entry?.key;
+      const enabled = typeof entry === 'object' ? entry.enabled ?? entry.value ?? true : true;
+      if (enabled && name) permissions.add(normalizePermissionName(name));
+    }
+    return;
+  }
+  if (!source || typeof source !== 'object') return;
+  for (const [name, enabled] of Object.entries(source)) {
+    if (enabled === true || enabled === 1 || enabled === 'true') {
+      permissions.add(normalizePermissionName(name));
+    }
+  }
+};
 
 export const STAFF_TIERS = Object.freeze({
   USER: 0,
@@ -160,7 +186,7 @@ export class YapinPermissionsApi {
     }
 
     const rawRoles = Array.isArray(member?.roles) ? member.roles : [];
-    const roleIds = rawRoles.map((r) => (typeof r === 'object' && r !== null ? String(r.id) : String(r)));
+    const roleIds = rawRoles.map(normalizeRoleId).filter(Boolean);
     const roleIdSet = new Set(roleIds);
 
     const platformPermissions = new Set();
@@ -170,16 +196,21 @@ export class YapinPermissionsApi {
       }
     } else {
       for (const role of allRoles) {
-        if (!roleIdSet.has(String(role.id))) continue;
-        if (role.manage_server || role.manageServer) {
+        if (!role || !roleIdSet.has(normalizeRoleId(role))) continue;
+        if (role.manage_server === true || role.manageServer === true) {
           platformPermissions.add(normalizePermissionName(YAPIN_PERMISSIONS.MANAGE_SERVER));
         }
-        if (role.manage_messages || role.manageMessages) {
+        if (role.manage_messages === true || role.manageMessages === true) {
           platformPermissions.add(normalizePermissionName(YAPIN_PERMISSIONS.MANAGE_MESSAGES));
         }
-        const permsObj = role.perms || role.permissions || {};
-        for (const [k, v] of Object.entries(permsObj)) {
-          if (v) platformPermissions.add(normalizePermissionName(k));
+        // Yapin's documented role response exposes both direct flags and `perms.*` flags.
+        // Accept its nested-object and flattened-key shapes without treating false as granted.
+        addPermissionFlags(platformPermissions, role.perms);
+        addPermissionFlags(platformPermissions, role.permissions);
+        for (const [key, value] of Object.entries(role)) {
+          if (key.startsWith('perms.') || key.startsWith('perms_')) {
+            addPermissionFlags(platformPermissions, { [key]: value });
+          }
         }
       }
     }

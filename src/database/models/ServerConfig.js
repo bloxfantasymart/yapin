@@ -40,8 +40,8 @@ export const ServerConfigSchema = z.object({
   verification: defaultedObject({
     enabled: z.boolean().default(true),
     mode: z
-      .preprocess((v) => String(v || 'code').trim().toLowerCase(), z.enum(['code', 'instant']))
-      .default('code'),
+      .preprocess((v) => String(v || 'instant').trim().toLowerCase(), z.enum(['code', 'instant']))
+      .default('instant'),
     welcomeMessage: z
       .string()
       .max(1000)
