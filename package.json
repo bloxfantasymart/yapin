@@ -1,0 +1,41 @@
+{
+  "name": "yapin-middleman-bot",
+  "version": "1.0.0",
+  "description": "Production-ready Middleman Coordination, Verification, Ticket & Dispute Bot for Yapin.gg",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "vitest run --config vitest.live.config.js",
+    "test:connection": "node scripts/test-connection.js",
+    "register:commands": "node scripts/register-commands.js",
+    "db:check": "node scripts/db-check.js",
+    "package:zip": "node scripts/package-zip.js"
+  },
+  "keywords": [
+    "yapin",
+    "yapin.gg",
+    "middleman",
+    "bot",
+    "trading",
+    "tickets",
+    "disputes",
+    "mongodb"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "mongoose": "^9.11.4",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
+  }
+}
