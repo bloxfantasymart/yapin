@@ -1,0 +1,24 @@
+[Unit]
+Description=MM2 Helper Bot for MurderMystery2 Roleplay on Yapin.gg (Atomic JSON Storage)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yapinbot
+Group=yapinbot
+WorkingDirectory=/opt/mm2-helper-bot
+EnvironmentFile=/etc/mm2-helper/bot.env
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=25
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/mm2-helper-bot/data
+
+[Install]
+WantedBy=multi-user.target

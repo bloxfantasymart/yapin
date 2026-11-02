@@ -1,0 +1,42 @@
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+token.txt
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Local databases & cursor state
+data/
+db/
+*.sqlite
+*.db
+.yapin-seq
+.yapin-seq.json
+
+# Sensitive ticket transcripts & exported evidence
+transcripts/
+evidence/
+
+# Test & build outputs
+coverage/
+dist/
+build/
+Unselected files/
+*.zip
+!mm2-helper-bot.zip
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
